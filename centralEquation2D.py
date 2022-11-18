@@ -13,7 +13,7 @@ import potentials as pot
 rs = 101                                                                        # Real-space sampling
 ks = 15                                                                         # K-space sampling
 N  = 10                                                                         # Number of terms to consider in Fourier space
-v0 = -3/4                                                                       # Characteristic potential strength (eV)
+v0 = -3/4                                                                       # Characteristic potential strength (eV) This needs to be fixed stil
 m_eff = 0.400                                                                   # Effective electron mass me*/me
 L = 1.0                                                                         # Nearest neighbor spacing (nm)
 r = 0.3                                                                         # Radii of potential wells
@@ -107,16 +107,17 @@ for kn,kx in enumerate(kk[:,0]):
         k = kn*len(kk)+km
         if((k%int(0.1*len(kk)**2)) == 0): print(int(100*k/len(kk)**2)+1,'%')
 
-# %%
-# Wavefunction
-E    = -0.1                                                                       # Energy of the wfn to plot (eV)
-E = int(100*np.min(Ek[0]))/100
-# E = 2
+x1p = 3*x1
+x2p = 3*x2
+X1P,X2P = np.meshgrid(x1p,x2p)
+
+mid = int((1+(2*N+1)**2)/2)
+E = int(100*np.min(Ek[2]))/100
 emin = E - 0.025
 emax = E + 0.025
 B = ((Ek >= emin) & (Ek <= emax))
-psi_total = np.zeros_like(X1)
-R = np.sqrt(X1**2 + X2**2)
+psi_total = np.zeros_like(X1P)
+print("Calculating Wavefunction...")
 for row in range(mid):
     for kn,kx in enumerate(kk[:,0]):
         for km,ky in enumerate(kk[:,1]):
@@ -125,20 +126,19 @@ for row in range(mid):
             kg = k+KEG
             kg1 = kg[:,0].reshape((mid,1))
             kg2 = kg[:,1].reshape((mid,1))
-            # exp = np.exp(i*(np.matmul(kg1,x1.reshape((1,rs))) + np.matmul(kg2,x2.reshape((1,rs)))))
-            exp = np.exp(i*(np.matmul(kg1,x1.reshape((1,rs))) + np.matmul(kg2,x2.reshape((1,rs)))))
-            psi_k = np.sum(Coeff[:,row,kn,km].reshape((mid,1))*exp,0)
-            psi_total += abs(psi_k)
+            exp = np.exp(i*(kg1[...,None]*X1P + kg2[...,None]*X2P))
+            psi_k = np.sum(exp*Coeff[:,row,kn,km][...,None,None],0)
+            psi_total += abs(psi_k)**2
     
     if((row%int(0.05*mid)) == 0): print(int(100*row/mid)+1,'%')
 
 # %%
 # Plotting
 fig = plt.figure()
-ax1 = fig.add_subplot(2,2,1)
-ax2 = fig.add_subplot(2,2,3)
+ax1 = fig.add_subplot(3,2,1)
+ax2 = fig.add_subplot(3,2,3)
 ax3 = fig.add_subplot(1,2,2,projection='3d')
-# ax4 = fig.add_subplot(2,2,4)
+ax4 = fig.add_subplot(3,2,5)
 
 extent=np.array([min(x1),max(x1),min(x2),max(x2)])
 
@@ -161,15 +161,16 @@ for p in range(5):
     ax1.plot(xx,yy,c='red',linewidth=1)
     if(p==3): break
 
-
 numbands = 3
 K1,K2 = np.meshgrid(kk[:,0],kk[:,1])
 for ne,e in enumerate(Ek):
-    ax3.plot_surface(K1, K2, e, linewidth=0, antialiased=True)
     # ax2.plot(kk[:,0]*a1[0]/pi,e[:,int(ks/2)])
     ax2.plot(kk[:,1]*a2[1]/pi,e[int(ks/2),:])
     # daxis = np.sqrt(kk[:,1]**2 + kk[:,0]**2)
     # daxis[0:15] *= -1
     # ax2.plot(daxis,np.diag(e[:,:]))
+    ax3.plot_surface(K1, K2, e, linewidth=0, antialiased=True)
     if(ne == numbands - 1):
         break
+
+ax4.imshow(psi_total,extent=extent)
