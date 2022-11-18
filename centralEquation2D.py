@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 import potentials as pot
 
 # Parameters
-rs = 201                                                                        # Real-space sampling
-ks = 31                                                                         # K-space sampling
-N  = 15                                                                         # Number of terms to consider in Fourier space
+rs = 101                                                                        # Real-space sampling
+ks = 15                                                                         # K-space sampling
+N  = 10                                                                         # Number of terms to consider in Fourier space
 v0 = -3/4                                                                       # Characteristic potential strength (eV)
 m_eff = 0.400                                                                   # Effective electron mass me*/me
 L = 1.0                                                                         # Nearest neighbor spacing (nm)
@@ -27,7 +27,6 @@ m_e   = 0.51099895e6                                                            
 # Build real-space and UC of periodic potential
 # a,X,V   = pot.muffin_top(L, r, rs)
 # a,X,V   = pot.hexagonal_primitive(L, r, rs)
-# a,X,V   = pot.hexagonal_rec(L, r, rs)
 a,X,V   = pot.kagome_primitive(L, r, rs)
 V      *= v0
 a1,a2   = a
@@ -107,6 +106,32 @@ for kn,kx in enumerate(kk[:,0]):
         
         k = kn*len(kk)+km
         if((k%int(0.1*len(kk)**2)) == 0): print(int(100*k/len(kk)**2)+1,'%')
+
+# %%
+# Wavefunction
+E    = -0.1                                                                       # Energy of the wfn to plot (eV)
+E = int(100*np.min(Ek[0]))/100
+# E = 2
+emin = E - 0.025
+emax = E + 0.025
+B = ((Ek >= emin) & (Ek <= emax))
+psi_total = np.zeros_like(X1)
+R = np.sqrt(X1**2 + X2**2)
+for row in range(mid):
+    for kn,kx in enumerate(kk[:,0]):
+        for km,ky in enumerate(kk[:,1]):
+            if(not B[row,kn,km]): continue
+            k  = np.array([kx,ky])
+            kg = k+KEG
+            kg1 = kg[:,0].reshape((mid,1))
+            kg2 = kg[:,1].reshape((mid,1))
+            # exp = np.exp(i*(np.matmul(kg1,x1.reshape((1,rs))) + np.matmul(kg2,x2.reshape((1,rs)))))
+            exp = np.exp(i*(np.matmul(kg1,x1.reshape((1,rs))) + np.matmul(kg2,x2.reshape((1,rs)))))
+            psi_k = np.sum(Coeff[:,row,kn,km].reshape((mid,1))*exp,0)
+            psi_total += abs(psi_k)
+    
+    if((row%int(0.05*mid)) == 0): print(int(100*row/mid)+1,'%')
+
 # %%
 # Plotting
 fig = plt.figure()
