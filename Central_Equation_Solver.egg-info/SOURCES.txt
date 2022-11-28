@@ -1,7 +1,0 @@
-README.md
-setup.py
-Central_Equation_Solver.egg-info/PKG-INFO
-Central_Equation_Solver.egg-info/SOURCES.txt
-Central_Equation_Solver.egg-info/dependency_links.txt
-Central_Equation_Solver.egg-info/requires.txt
-Central_Equation_Solver.egg-info/top_level.txt

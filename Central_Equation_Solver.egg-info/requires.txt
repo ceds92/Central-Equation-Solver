@@ -1,5 +1,0 @@
-numpy
-matplotlib
-customtkinter
-matplotlib_scalebar
-scipy
