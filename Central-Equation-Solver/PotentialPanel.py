@@ -23,11 +23,11 @@ class PotentialPanel(Panel):
     ###########################################################################
     def buttons(self):
         self.btn = {
-            "Refresh": ctk.CTkButton(self.master, text="Refresh", command=self.refresh),
-            "cmap":    ctk.CTkButton(self.master, text="viridis", command=super()._cmap), # Button to cycle through colour maps
-            "PNG":     ctk.CTkButton(self.master, text="Exp PNG", command=super().exportPNG),   # Export the canvas to png
-            "Overlay":  ctk.CTkComboBox(self.master,values=["Overlay"], command=self.overlay), # Dropdown to change overlay display
-            "Close":   ctk.CTkButton(self.master, text="Close",   command=self.destroy)
+            "Refresh": ctk.CTkButton(self.master, text="Refresh",       command=self.refresh),
+            "cmap":    ctk.CTkButton(self.master, text="viridis",       command=super()._cmap),     # Button to cycle through colour maps
+            "PNG":     ctk.CTkButton(self.master, text="Exp PNG",       command=super().exportPNG), # Export the canvas to png
+            "Overlay": ctk.CTkComboBox(self.master,values=["Overlay"],  command=self.overlay),      # Dropdown to change overlay display
+            "Close":   ctk.CTkButton(self.master, text="Close",         command=self.destroy)
             }
     
         overlayValues = ["Overlay","Scale Bar"]

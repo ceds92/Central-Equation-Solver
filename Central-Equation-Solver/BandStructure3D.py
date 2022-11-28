@@ -16,8 +16,7 @@ class BandStructure3D(Panel):
     # Constructor
     ###########################################################################
     def __init__(self, master, width, height, dpi, mainPanel):
-        super().__init__(master, width, height, dpi, mainPanel=mainPanel,length=8,btnSize=2,plotType='3D')
-        self.ax  = self.fig.add_subplot(111,projection='3d')
+        super().__init__(master, width, height, dpi, mainPanel=mainPanel,length=8,btnSize=2,plotType='3d')
         self.buttons()
         
     ###########################################################################
@@ -27,7 +26,8 @@ class BandStructure3D(Panel):
         self.btn = {
             "Add":    ctk.CTkButton(self.master, text="Add band",    command=self.addBand),
             "Remove": ctk.CTkButton(self.master, text="Remove band", command=self.removeBand),
-            "Close":  ctk.CTkButton(self.master, text="Close",        command=self.destroy)
+            "PNG":    ctk.CTkButton(self.master, text="Exp PNG",     command=super().exportPNG), # Export the canvas to png
+            "Close":  ctk.CTkButton(self.master, text="Close",       command=self.destroy)
             }
         
     def buttonHelp(self):
@@ -39,6 +39,9 @@ class BandStructure3D(Panel):
         
         helpStr = "Remove a band from the plot"
         self.btn['Remove'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Export the main panel plot as a png"
+        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
     ###########################################################################
     # Update and Plotting
@@ -61,9 +64,9 @@ class BandStructure3D(Panel):
             for b in range(self.numBands):
                 Ekb = self.mainPanel.sim.Ek[b]
                 self.ax.plot_surface(K1/lim[0], K2/lim[1], Ekb, linewidth=0, antialiased=True)
-                self.ax.view_init(elev=10., azim=45)
                 self.ax.set_xlim([-1.5,1.5])
                 self.ax.set_ylim([-1.5,1.5])
+                self.ax.view_init(elev=10., azim=45)
     
     ###########################################################################
     # Misc

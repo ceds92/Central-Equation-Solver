@@ -34,7 +34,8 @@ class Panel():
         
         # Figure
         self.fig = plt.figure(figsize=(width/dpi,height/dpi),dpi=dpi)
-        self.ax  = self.fig.add_subplot(111)
+        if(not plotType):     self.ax = self.fig.add_subplot(111)
+        if(plotType == '3d'): self.ax = self.fig.add_subplot(111,projection='3d')
         
         # Misc init
         self._initCmaps()

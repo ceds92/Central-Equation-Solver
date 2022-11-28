@@ -26,7 +26,8 @@ class BandStructure2D(Panel):
         self.btn = {
             "Add":    ctk.CTkButton(self.master, text="Add band",    command=self.addBand),
             "Remove": ctk.CTkButton(self.master, text="Remove band", command=self.removeBand),
-            "Close":  ctk.CTkButton(self.master, text="Close",        command=self.destroy)
+            "PNG":    ctk.CTkButton(self.master, text="Exp PNG",     command=super().exportPNG), # Export the canvas to png
+            "Close":  ctk.CTkButton(self.master, text="Close",       command=self.destroy)
             }
         
     def buttonHelp(self):
@@ -38,6 +39,9 @@ class BandStructure2D(Panel):
         
         helpStr = "Remove a band from the plot"
         self.btn['Remove'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Export the main panel plot as a png"
+        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
     ###########################################################################
     # Update and Plotting

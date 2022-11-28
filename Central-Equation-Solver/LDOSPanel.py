@@ -33,16 +33,16 @@ class LDOSPanel(Panel):
     ###########################################################################
     def buttons(self):
         self.btn = {
-            "Addx0": ctk.CTkButton(self.master, text="Addx0", command=self.addx0),
-            "Undo":  ctk.CTkButton(self.master, text="Undo",  command=self.undo),
-            "Close": ctk.CTkButton(self.master, text="Close", command=self.destroy)
+            "Addx0": ctk.CTkButton(self.master, text="Addx0",   command=self.addx0),
+            "Undo":  ctk.CTkButton(self.master, text="Undo",    command=self.undo),
+            "Close": ctk.CTkButton(self.master, text="Close",   command=self.destroy)
             }
         
         helpStr = "Place an LDOS marker on the potential in the left figure"
         self.btn['Addx0'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
     
         helpStr = "Undo the last LDOS marker"
-        self.btn['Addx0'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        self.btn['Undo'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Close this panel"
         self.btn['Close'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
