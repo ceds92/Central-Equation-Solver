@@ -1,2 +1,6 @@
 *.egg-info*
 *.pyc
+*.dat
+Central-Equation-Solver/simExplorer.py
+*.pk
+*.epwe

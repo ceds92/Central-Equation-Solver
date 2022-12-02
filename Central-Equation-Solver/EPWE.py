@@ -492,6 +492,7 @@ class EPWE():
                 LDOSs[nx0,ne] = ldos
                 if(ne%int(0.1*len(Ex)) == 0): print(int(100*ne/len(Ex)),'%')
         
+        LDOSs /= np.max(LDOSs)
         self.LDOS    = LDOSs
         self.LDOSEx  = Ex
         self.LDOSx0s = x0s

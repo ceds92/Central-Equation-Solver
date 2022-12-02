@@ -11,10 +11,6 @@ import numpy as np
 from scipy.signal import savgol_filter as savgol
 
 class LDOSPanel(Panel):
-    scaleBar = True
-    plotCaption = True
-    numBands = 1
-    valid = False                                                               # Make RUN button red when updates are not reflected in the LDOS
     ###########################################################################
     # Constructor
     ###########################################################################
@@ -27,6 +23,9 @@ class LDOSPanel(Panel):
         self.x0s   = []
         self.sg_pts  = 1
         self.sg_poly = 1
+        self.tunnellingFactor = 0
+        self.gridLines = True
+        self.init = 1
         
     ###########################################################################
     # Panel
@@ -35,6 +34,8 @@ class LDOSPanel(Panel):
         self.btn = {
             "Addx0": ctk.CTkButton(self.master, text="Addx0",   command=self.addx0),
             "Undo":  ctk.CTkButton(self.master, text="Undo",    command=self.undo),
+            "Grid":  ctk.CTkButton(self.master, text="Grid",    command=self.toggleGrid),
+            "PNG":   ctk.CTkButton(self.master, text="Exp PNG", command=super().exportPNG), # Export the canvas to png
             "Close": ctk.CTkButton(self.master, text="Close",   command=self.destroy)
             }
         
@@ -47,6 +48,12 @@ class LDOSPanel(Panel):
         helpStr = "Close this panel"
         self.btn['Close'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
+        helpStr = "Toggle grid lines on the plot"
+        self.btn['Grid'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Export the panel figure as a png"
+        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
     def special(self):
         params = []
         params.append(['Emin','Emax','dE'])
@@ -54,13 +61,17 @@ class LDOSPanel(Panel):
         self.buildForm(name="LDOSForm", params=params)
         self.showForm(name="LDOSForm")
         
-        self.slider = ctk.CTkSlider(self.master, orient=ctk.HORIZONTAL, from_=0, to=9, width=380, command=self.smoothing) # Slider to select which bias/sweep signal slice to look show
-        self.slider.grid(row=11,column=self.pos+1,columnspan=4,rowspan=2)          # Make it take up the entire length of the panel
-        self.slider.set(0)
+        self.smoothSlider = ctk.CTkSlider(self.master, orient=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.smoothing) # Slider to select which bias/sweep signal slice to look show
+        self.smoothSlider.grid(row=10,column=self.pos,columnspan=8,rowspan=1)   # Make it take up the entire length of the panel
+        self.smoothSlider.set(0)
+        
+        self.expSlider = ctk.CTkSlider(self.master, orient=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.exponential) # Slider to select which bias/sweep signal slice to look show
+        self.expSlider.grid(row=12,column=self.pos,columnspan=8,rowspan=1)      # Make it take up the entire length of the panel
+        self.expSlider.set(0)
 
     def removeSpecial(self):
         self.hideForm()
-        self.slider.grid_forget()
+        self.smoothSlider.grid_forget()
     
     def buildForm(self,name,params,row=7):
         self.forms[name] = {"labels"  : [],
@@ -85,13 +96,19 @@ class LDOSPanel(Panel):
         self.ax.cla()                                                           # Clear the axis
         self.ax.set_position([0.09, 0.07, 0.87, 0.9])                           # Make it take up the whole canvas
         self.plotLDOS()
+        if(self.gridLines):
+            self.ax.grid(b=True, which='major', linestyle='-')
+            self.ax.grid(b=True, which='minor', linestyle='--')
+            self.ax.minorticks_on()
         self.canvas.figure = self.fig                                           # Assign the figure to the canvas
         self.canvas.draw()    
     
     def plotLDOS(self):
         if(not len(self.LDOS)): return
         for LDOS in self.smoothedLDOS:
-            self.ax.plot(self.Ex,LDOS)
+            exponential = 0.1*np.exp(self.Ex*self.tunnellingFactor/5) - 0.1
+            self.ax.plot(self.Ex,LDOS + exponential)
+        self.ax.plot(self.Ex,exponential,linestyle = 'dashed',linewidth=1,alpha=0.5)
             
     ###########################################################################
     # Form Actions
@@ -104,7 +121,7 @@ class LDOSPanel(Panel):
         for idx,e in enumerate(self.forms[name]['entries']):
             e[0].grid(row=e[1],column=e[2],columnspan=1)
             e[0].configure(width=int(self.width/self.length),height=27)
-            # if(self.componentIdx < 0): continue
+            
             e[0].delete(0,ctk.END)
             e[0].insert(0,[0,1,0.03,200][idx])
         
@@ -172,11 +189,18 @@ class LDOSPanel(Panel):
         if(self.sg_pts > self.sg_poly):
             for l,LDOS in enumerate(self.LDOS):
                 self.smoothedLDOS[l] = savgol(LDOS,self.sg_pts,self.sg_poly,deriv=0)
-        self.update()    
-        
+        self.update()
     ###########################################################################
     # Misc
     ###########################################################################
+    def toggleGrid(self):
+        self.gridLines = not self.gridLines
+        self.update()
+    
+    def exponential(self,event):
+        self.tunnellingFactor = event
+        self.update()
+        
     def load(self):
         if(len(self.mainPanel.sim.LDOS)):
             self.LDOS = self.mainPanel.sim.LDOS
@@ -185,8 +209,3 @@ class LDOSPanel(Panel):
             
             self.smootheLDOS = self.smoothing(event=-1)
             self.update()
-            
-    def _numBands(self,b):
-        if(self.numBands + b < 0): return
-        self.numBands += b
-        print(self.numBands)

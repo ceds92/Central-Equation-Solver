@@ -16,9 +16,8 @@ import customtkinter as ctk
 from   tkinter import filedialog
 import numpy as np
 import matplotlib
+import matplotlib.pyplot as plt
 import os
-# from ase.io import read
-# from ase.visualize.plot import plot_atoms
 import potentials as pot
 from EPWE import EPWE
 import pickle
@@ -27,6 +26,7 @@ matplotlib.use("TkAgg")
 
 
 class MainPanel(Panel):
+    mplibColours = plt.rcParams['axes.prop_cycle'].by_key()['color'] + ['white'] + ['black']
     bound = False                                                               # Used so only one function can be bound at a time
     
     ###########################################################################
@@ -48,12 +48,11 @@ class MainPanel(Panel):
         self.sim = EPWE()
         self.currentstsPos = []
         self.forms = {}
-        self.potParams = [1,0.25,101,3]
         self.potentialType  = "Hexagonal"
         self.potentialTypes = {"Hexagonal" : [pot.hexagonal_primitive,  [1,0.3,101,-2]],
                                "Kagome"    : [pot.kagome_primitive,     [1,0.4,101,-2]],
                                "Muffin Tin": [pot.muffin_primitive,     [1,0.25,101,-2.5]],
-                               "SimParams" : [self.run,                 [31,5,0.5]]}
+                               "SimParams" : [self.run,                 [31,5,0.4]]}
         
     ###########################################################################
     # Panel
@@ -76,7 +75,6 @@ class MainPanel(Panel):
             "Overlay":  ctk.CTkComboBox(self.master,values=["Overlay"],     command=self.overlay),        # Dropdown to change overlay display
             "cmap":     ctk.CTkButton(self.master, text="viridis",          command=super()._cmap),       # Button to cycle through colour maps
             "PNG":      ctk.CTkButton(self.master, text="Exp PNG",          command=super().exportPNG),   # Export the canvas to png
-            # "DrawAtoms":ctk.CTkComboBox(self.master,values=["Draw Atoms"], command=self.placeMolecule), # Button to place a HAT molecule
             "OpenPanel":ctk.CTkComboBox(self.master,values=["Open Panel"],  command=self.openPanel),      # Dropdown to open other panels
             "Save":     ctk.CTkButton(self.master, text="Save",             command=self.save),           # Save all session to a .epwe file
             "Load":     ctk.CTkButton(self.master, text="Load",             command=self.load),           # Load a .epwe file
@@ -87,9 +85,6 @@ class MainPanel(Panel):
         potentialValues.remove("SimParams")
         self.btn['Potential'].configure(values=potentialValues,fg_color=['#3B8ED0', '#1F6AA5'])
         self.btn['Potential'].set(self.potentialType)
-        
-        # drawAtomValues = ["Draw Atoms","HAT","DCA","Cu","Custom.xyz","Undo","Reset"]
-        # self.btn['DrawAtoms'].configure(values=drawAtomValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
         openPanelValues = ["Open Panel","Rebuilt Potential","2D Bands","3D Bands","Map Generator","Map Viewer","LDOS"]
         self.btn['OpenPanel'].configure(values=openPanelValues,fg_color=['#3B8ED0', '#1F6AA5'])
@@ -112,9 +107,6 @@ class MainPanel(Panel):
         
         helpStr = "Load a previous session from a .epwe file"
         self.btn['Load'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
-        
-        helpStr = "Export the main panel plot as a png"
-        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Quit the program"
         self.btn['Quit'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
@@ -153,6 +145,7 @@ class MainPanel(Panel):
         
         self.showForm(name="SimParams")
         self.showForm(name=self.potentialType)
+        self.forms["SimParams"]['buttons'][0][0].configure(fg_color='Red')
         
     def removeSpecial(self):
         self.hideForm()
@@ -241,7 +234,7 @@ class MainPanel(Panel):
         for idx,e in enumerate(self.forms[name]['entries']):
             e[0].grid(row=e[1],column=e[2],columnspan=1)
             e[0].configure(width=int(self.width/self.length),height=27)
-            # if(self.componentIdx < 0): continue
+            
             e[0].delete(0,ctk.END)
             e[0].insert(0,self.potentialTypes[name][1][idx])
         
@@ -264,17 +257,24 @@ class MainPanel(Panel):
                 b[0].grid_forget()
                 
     def submitForm(self,name):
-        params = []
-        for e in self.forms[name]['entries']:
+        params    = []
+        oldparams = self.potentialTypes[name][1]
+        paramsChanged = False
+        for p,e in enumerate(self.forms[name]['entries']):
             try:
                 params.append(np.float32(e[0].get()))
             except:
                 self.updateHelpLabel("Error in form: All values must be numeric.")
                 return
+            if(not np.float32(oldparams[p]) == params[p]):
+                paramsChanged = True
             
         self.potentialTypes[name][1] = params
         if(name == "SimParams"):
             self.run(params)
+        elif(paramsChanged):
+            self.forms["SimParams"]['buttons'][0][0].configure(fg_color='red')
+            self.updateHelpLabel("Warning: Current simulation does not reflect the potential shown!")
             
         self.update(upd=[0])
         
@@ -286,7 +286,9 @@ class MainPanel(Panel):
         self.updateHelpLabel("Running Sim...")
         self.sim = EPWE(int(ks),int(N),m_eff)
         self.sim.run(self.a,self.X,self.V)
+            
         self.updateHelpLabel("Done!")
+        self.forms["SimParams"]['buttons'][0][0].configure(fg_color=['#3B8ED0', '#1F6AA5'])
         self.update()
     
     ###########################################################################
@@ -338,7 +340,7 @@ class MainPanel(Panel):
         
         self.currentstsPos = [X,Y]
         self.update(upd=[0])
-        
+       
     ###########################################################################
     # Misc
     ###########################################################################
@@ -413,15 +415,17 @@ class MainPanel(Panel):
             self.hideForm(self.potentialType)
             self.potentialType = option
             self.showForm(option)
+            self.forms["SimParams"]['buttons'][0][0].configure(fg_color='Red')
             self.update()
     
     def openPanel(self,option):
-        if(option == "Map Generator"):self.mapsPanel.create()
-        if(option == "Map Viewer"): self.mapViewerPanel.create()
-        if(option == "2D Bands"):   self.bs2DPanel.create()
-        if(option == "3D Bands"):   self.bs3DPanel.create()
-        if(option == "Rebuilt Potential"): self.potentialPanel.create()
-        if(option == "LDOS"):       self.ldosPanel.create()
+        if(option == "Map Generator"):      self.mapsPanel.create()
+        if(option == "Map Viewer"):         self.mapViewerPanel.create()
+        if(option == "2D Bands"):           self.bs2DPanel.create()
+        if(option == "3D Bands"):           self.bs3DPanel.create()
+        if(option == "Rebuilt Potential"):  self.potentialPanel.create()
+        if(option == "LDOS"):               self.ldosPanel.create()
+        
         self.btn['OpenPanel'].set("Open Panel")
         
     def overlay(self,option):
@@ -430,6 +434,7 @@ class MainPanel(Panel):
             return
         if(option == "Caption"):    self.toggleCaption()
         if(option == "Scale Bar"):  self.toggleScaleBar()
+        if(option == "Export PNG"): super().exportPNG()
         self.btn['Overlay'].set("Overlay")
         
     def toggleCaption(self):
