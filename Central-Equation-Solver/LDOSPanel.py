@@ -61,17 +61,18 @@ class LDOSPanel(Panel):
         self.buildForm(name="LDOSForm", params=params)
         self.showForm(name="LDOSForm")
         
-        self.smoothSlider = ctk.CTkSlider(self.master, orient=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.smoothing) # Slider to select which bias/sweep signal slice to look show
+        self.smoothSlider = ctk.CTkSlider(self.master, orientation=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.smoothing) # Slider to select which bias/sweep signal slice to look show
         self.smoothSlider.grid(row=10,column=self.pos,columnspan=8,rowspan=1)   # Make it take up the entire length of the panel
         self.smoothSlider.set(0)
         
-        self.expSlider = ctk.CTkSlider(self.master, orient=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.exponential) # Slider to select which bias/sweep signal slice to look show
+        self.expSlider = ctk.CTkSlider(self.master, orientation=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.exponential) # Slider to select which bias/sweep signal slice to look show
         self.expSlider.grid(row=12,column=self.pos,columnspan=8,rowspan=1)      # Make it take up the entire length of the panel
         self.expSlider.set(0)
 
     def removeSpecial(self):
         self.hideForm()
         self.smoothSlider.grid_forget()
+        self.expSlider.grid_forget()
     
     def buildForm(self,name,params,row=7):
         self.forms[name] = {"labels"  : [],

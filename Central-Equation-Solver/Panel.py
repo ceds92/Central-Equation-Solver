@@ -78,7 +78,7 @@ class Panel():
         pass
     
     def _helpLabel(self):
-        self.helpLabel = ctk.CTkLabel(self.master,text="",justify=ctk.LEFT, wraplengt=self.width - 5)
+        self.helpLabel = ctk.CTkLabel(self.master,text="",justify=ctk.LEFT, wraplength=self.width - 5)
         for r in range(4):
             self.master.rowconfigure(index=r+14,weight=1,minsize=20)
         self.helpLabel.grid(row=14,column=self.pos,columnspan=self.length,rowspan=4,sticky='nsew')
