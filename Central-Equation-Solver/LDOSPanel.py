@@ -16,23 +16,24 @@ class LDOSPanel(Panel):
     ###########################################################################
     def __init__(self, master, width, height, dpi, mainPanel):
         super().__init__(master, width, height, dpi, mainPanel=mainPanel,length=8,btnSize=2)
+        super().initGlobs(name="LDOS")
         self.buttons()
         self.forms = {}
-        self.LDOS  = []
-        self.smootheLDOS = []
         self.x0s   = []
         self.sg_pts  = 1
         self.sg_poly = 1
         self.tunnellingFactor = 0
         self.gridLines = True
+        self.LDOS  = []
+        self.smootheLDOS = []
         self.init = 1
-        
+    
     ###########################################################################
     # Panel
     ###########################################################################
     def buttons(self):
         self.btn = {
-            "Addx0": ctk.CTkButton(self.master, text="Addx0",   command=self.addx0),
+            "Addx0": ctk.CTkButton(self.master, text="Add LDOS",command=self.addx0),
             "Undo":  ctk.CTkButton(self.master, text="Undo",    command=self.undo),
             "Grid":  ctk.CTkButton(self.master, text="Grid",    command=self.toggleGrid),
             "PNG":   ctk.CTkButton(self.master, text="Exp PNG", command=super().exportPNG), # Export the canvas to png
@@ -153,23 +154,60 @@ class LDOSPanel(Panel):
             except:
                 self.updateHelpLabel("Error in form: All values must be numeric.")
                 return
-            
-        if(self.mainPanel.sim and self.mainPanel.sim.valid):
-            emin,emax,dE,pts = params
-            x0s = np.array(self.x0s)
-            self.LDOS,self.Ex = self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s)
-            self.smootheLDOS = self.smoothing(event=-1)
-            self.updateHelpLabel("Done!")
-        else:
-            self.updateHelpLabel("Error, simulation not valid. Need to rerun before calculting map.")
-            
+                
+        if(not (self.mainPanel.sim and self.mainPanel.sim.valid)):
+            self.updateHelpLabel("Error: simulation not valid. Need to rerun before calculting LDOS.")
+            return
+        
+        if(self.mainPanel.sim.running["main"]):
+            self.updateHelpLabel("Error: Wait for the simulation to finish running.")
+            return
+        
+        if(self.mainPanel.sim.running["LDOS"]):
+            super().stop()
+            while(self.mainPanel.sim.running["LDOS"]):
+                print("waiting to stop")
+            self.forms["LDOSForm"]['buttons'][0][0].configure(text="RUN")
+            self.updateHelpLabel("Stopped!")
+            return
+        
+        self.forms["LDOSForm"]['buttons'][0][0].configure(text="STOP")
+        self.updateHelpLabel("Calculating LDOS...")
+        
+        emin,emax,dE,pts = params
+        x0s = np.array(self.x0s)
+        
+        if(not len(x0s)):
+            self.updateHelpLabel("Add at least one marker on the main figure before running")
+            return
+        
+        func = lambda : self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s,initiator=self)
+        super().threadTask(func)
+        
+    def finish(self,success,LDOS="",Ex=""):
+        if(not success):
+            self.updateHelpLabel("Error: Cannot run while another process is running.")
+            return
+        
+        self.forms["LDOSForm"]['buttons'][0][0].configure(text="RUN")
+        
+        self.Ex   = Ex
+        self.LDOS = LDOS
+        self.smootheLDOS = self.smoothing(event=-1)
+        
         self.update()
         self.mainPanel.update(upd=[0])
         
+        self.updateHelpLabel("Done!")
+    
+    def progress(self,progressStr):
+        self.updateHelpLabel("Calculating LDOS... " + str(progressStr))
     ###########################################################################
     # Adding x0
     ###########################################################################
     def addx0(self):
+        self.updateHelpLabel("Place the LDOS marker on the potential map to the left\n"
+                             + "Left click to place\nRight click to cancel")
         self.mainPanel.addx0Bind()
         
     def setx0(self,x0):

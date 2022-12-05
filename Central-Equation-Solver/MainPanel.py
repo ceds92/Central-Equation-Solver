@@ -35,6 +35,7 @@ class MainPanel(Panel):
     def __init__(self, master, width=512, height=512, dpi=96):
         self.init()
         super().__init__(master, width=width, height=height, dpi=dpi, length=8, btnSize=2)
+        super().initGlobs(name="main")
         self.buildSubPanels()
         self.buttons()
         super().create()
@@ -268,14 +269,30 @@ class MainPanel(Panel):
                 return
             if(not np.float32(oldparams[p]) == params[p]):
                 paramsChanged = True
-            
+        
         self.potentialTypes[name][1] = params
+        
         if(name == "SimParams"):
-            self.run(params)
+            if(self.sim.running["main"]):
+                super().stop()
+                while(self.sim.running["main"]):
+                    print("waiting to stop")
+                self.updateHelpLabel("Simulation stopped.")
+                self.forms["SimParams"]['buttons'][0][0].configure(text="Run Simulation")
+                self.forms["SimParams"]['buttons'][0][0].configure(fg_color='red')
+            else:
+                for simType,isRunning in self.sim.running.items():
+                    if(isRunning):
+                        waitStr = "Wait for " + simType + " to finish or stop it before running"
+                        self.updateHelpLabel(waitStr)
+                        return
+                self.updateHelpLabel("Running!")
+                self.forms["SimParams"]['buttons'][0][0].configure(fg_color=['#3B8ED0', '#1F6AA5'])
+                self.forms["SimParams"]['buttons'][0][0].configure(text="STOP")
+                self.run(params)
         elif(paramsChanged):
             self.forms["SimParams"]['buttons'][0][0].configure(fg_color='red')
             self.updateHelpLabel("Warning: Current simulation does not reflect the potential shown!")
-            
         self.update(upd=[0])
         
     def run(self,args=[]):
@@ -285,12 +302,23 @@ class MainPanel(Panel):
         ks,N,m_eff = args
         self.updateHelpLabel("Running Sim...")
         self.sim = EPWE(int(ks),int(N),m_eff)
-        self.sim.run(self.a,self.X,self.V)
-            
-        self.updateHelpLabel("Done!")
-        self.forms["SimParams"]['buttons'][0][0].configure(fg_color=['#3B8ED0', '#1F6AA5'])
-        self.update()
+        
+        func = lambda : self.sim.run(self.a,self.X,self.V,initiator=self)
+        super().threadTask(func)
     
+    def simFinished(self,success):
+        self.forms["SimParams"]['buttons'][0][0].configure(text="Run Simulation")
+        
+        if(not success):
+            self.updateHelpLabel("Cannot run sim while another process is running")
+            return
+        
+        self.updateHelpLabel("Finished Running!")
+        if(self.sim.valid):
+            self.update()
+        
+    def progress(self,progressStr):
+        self.updateHelpLabel(progressStr)
     ###########################################################################
     # Drawing STS Markers
     ###########################################################################

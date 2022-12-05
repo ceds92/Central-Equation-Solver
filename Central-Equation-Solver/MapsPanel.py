@@ -18,6 +18,7 @@ class MapsPanel(Panel):
     ###########################################################################
     def __init__(self, master, width, height, dpi, mainPanel):
         super().__init__(master, width, height, dpi, mainPanel=mainPanel,length=8,btnSize=2)
+        super().initGlobs(name="map")
         self.buttons()
         self.forms = {}
         self.psi = []
@@ -140,9 +141,9 @@ class MapsPanel(Panel):
         for idx,e in enumerate(self.forms[name]['entries']):
             e[0].grid(row=e[1],column=e[2],columnspan=1)
             e[0].configure(width=int(self.width/self.length),height=27)
-            # if(self.componentIdx < 0): continue
+            
             e[0].delete(0,ctk.END)
-            e[0].insert(0,[0,0.1,3][idx])
+            e[0].insert(0,[0,0.1,2][idx])
         
         for idx,b in enumerate(self.forms[name]['buttons']):
             b[0].grid(row=b[1],column=b[2] + 2*idx,columnspan=2)
@@ -172,15 +173,44 @@ class MapsPanel(Panel):
                 self.updateHelpLabel("Error in form: All values must be numeric.")
                 return
             
-        if(self.mainPanel.sim and self.mainPanel.sim.valid):
-            self.E = np.array([params[0],params[1]])
-            scale = params[2]
-            self.psi,self.extent,self.X = self.mainPanel.sim.getWavefunction(self.E,scale)
-            self.updateHelpLabel("Done!")
-        else:
-            self.updateHelpLabel("Error, simulation not valid. Need to rerun before calculting map.")
-            
+        if(not(self.mainPanel.sim and self.mainPanel.sim.valid)):
+            self.updateHelpLabel("Error: simulation not valid. Need to rerun before calculting map.")
+            return
+        
+        if(self.mainPanel.sim.running["main"]):
+            self.updateHelpLabel("Error: Wait for the simulation to finish running.")
+            return
+        
+        if(self.mainPanel.sim.running["map"]):
+            super().stop()
+            while(self.mainPanel.sim.running["map"]):
+                print("waiting to stop")
+            self.forms["Reference"]['buttons'][0][0].configure(text="RUN")
+            self.updateHelpLabel("Stopped!")
+            return
+        
+        self.forms["Reference"]['buttons'][0][0].configure(text="STOP")
+        self.updateHelpLabel("Generating map...")
+        self.E = np.array([params[0],params[1]])
+        scale = params[2]
+        func = lambda : self.mainPanel.sim.getWavefunction(self.E,scale,initiator=self)
+        super().threadTask(func)
+        
+    def finish(self,success,psi="",extent="",X=""):
+        if(not success):
+            self.updateHelpLabel("Error: Cannot run while another process is running.")
+            return
+        
+        self.forms["Reference"]['buttons'][0][0].configure(text="RUN")
+        
+        self.X      = X
+        self.psi    = psi
+        self.extent = extent
+        self.updateHelpLabel("Done!")
         self.update()
+    
+    def progress(self,progress):
+        self.updateHelpLabel("Generating map... " + str(progress) + " %")
         
     def overlay(self,option):
         if(option == "Caption"):        self.toggleCaption()

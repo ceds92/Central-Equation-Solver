@@ -15,6 +15,7 @@ class PotentialPanel(Panel):
     ###########################################################################
     def __init__(self, master, width, height, dpi, mainPanel):
         super().__init__(master, width, height, dpi, mainPanel=mainPanel)
+        super().initGlobs(name="potential")
         self.buttons()
         self.rebuiltV = []
         
@@ -23,7 +24,7 @@ class PotentialPanel(Panel):
     ###########################################################################
     def buttons(self):
         self.btn = {
-            "Refresh": ctk.CTkButton(self.master, text="Refresh",       command=self.refresh),
+            "Rebuild": ctk.CTkButton(self.master, text="Rebuild",       command=self.refresh),
             "cmap":    ctk.CTkButton(self.master, text="viridis",       command=super()._cmap),     # Button to cycle through colour maps
             "PNG":     ctk.CTkButton(self.master, text="Exp PNG",       command=super().exportPNG), # Export the canvas to png
             "Overlay": ctk.CTkComboBox(self.master,values=["Overlay"],  command=self.overlay),      # Dropdown to change overlay display
@@ -34,8 +35,8 @@ class PotentialPanel(Panel):
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
     def buttonHelp(self):
-        helpStr = "Reconstruct the potential"
-        self.btn['Refresh'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        helpStr = "Rebuild the potential from with the N coefficients"
+        self.btn['Rebuild'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Change the colour map"
         self.btn['cmap'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
@@ -47,10 +48,44 @@ class PotentialPanel(Panel):
         self.btn['Close'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
     
     def refresh(self):
-        if(self.mainPanel.sim and self.mainPanel.sim.valid):
-            self.rebuiltV,self.extent,self.X = self.mainPanel.sim.rebuildPotential(scale=2)
-            self.update()
+        if(not(self.mainPanel.sim and self.mainPanel.sim.valid)):
+            self.updateHelpLabel("Error: simulation not valid. Need to rerun before rebuilding potential.")
+            return
+        
+        if(self.mainPanel.sim.running["main"]):
+            self.updateHelpLabel("Error: Wait for the simulation to finish running.")
+            return
+        
+        
+        if(self.mainPanel.sim.running["potential"]):
+            super().stop()
+            while(self.mainPanel.sim.running["potential"]):
+                print("waiting to stop")
+            self.btn['Rebuild'].configure(text="Rebuild")
+            self.updateHelpLabel("Stopped!")
+            return
+        
+        self.btn['Rebuild'].configure(text="STOP")
+        self.updateHelpLabel("Rebuilding...")
+        
+        func = lambda : self.mainPanel.sim.rebuildPotential(scale=2,initiator=self)
+        super().threadTask(func)
+        
+    def finish(self,success,rebuiltV="",extent="",X=""):
+        if(not success):
+            self.updateHelpLabel("Error: Cannot run while another process is running.")
+            return
+        
+        self.btn['Rebuild'].configure(text="Rebuild")
+        
+        self.X        = X
+        self.extent   = extent
+        self.rebuiltV = rebuiltV
+        self.updateHelpLabel("Done!")
+        self.update()
     
+    def progress(self,progress):
+        self.updateHelpLabel("Rebuilding... " + str(progress) + " %")
     ###########################################################################
     # Update and Plotting
     ###########################################################################

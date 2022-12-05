@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib import colors
 from matplotlib_scalebar.scalebar import ScaleBar
+import global_
+import threading
 
 class Panel():
     pos    = 0                                                                  # This panel's column position. init to zero. gets added to the RHS of the window when created
@@ -39,6 +41,12 @@ class Panel():
         
         # Misc init
         self._initCmaps()
+    
+    def initGlobs(self,name):
+        exec("global_." + name + "_task = []")
+        exec("global_." + name + "_running = threading.Event()")                # event to stop threads
+        exec("self.task = global_." + name + "_task")
+        exec("self.running = global_." + name + "_running")
         
     def addPlotCaption(self, plotCaption, pos, props=None, fontsize=16, ax=None):
         if(not props):
@@ -210,5 +218,19 @@ class Panel():
             return None
         if(not path.endswith('.png')): path += '.png'
         self.fig.savefig(path,format='png',dpi=dpi)
-        
     
+    def threadTask(self,func):
+        if self.running.is_set():
+            self.updateHelpLabel("Simulation already running!")
+            print("Something went wrong... sim already running")
+            return
+        
+        self.running.set()
+        t = threading.Thread(target=func)
+        self.task = t
+        t.start()
+        
+    def stop(self):
+        if(self.running.is_set()):
+            self.running.clear()
+            self.task.join()

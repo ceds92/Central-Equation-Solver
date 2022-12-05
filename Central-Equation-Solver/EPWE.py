@@ -7,6 +7,7 @@ Created on Wed Nov 23 17:33:43 2022
 import numpy as np
 import numpy.linalg as npl
 import pickle
+import global_
 
 i     = complex(0,1)                                                            # Complex i
 pi    = np.pi                                                                   # 3.14
@@ -25,8 +26,16 @@ class EPWE():
         self.LDOS   = []                                                        # Computed LDOS curves go here
         
         self.valid = False
+        self.running = {"main":False,
+                        "LDOS":False,
+                        "map": False,
+                        "potential": False}
+    
+    def stop(self,name):
+        exec("global_." + name + "_running.clear()")
+        self.running[name] = False
         
-    def run(self,a,X,V):
+    def run(self,a,X,V,initiator=None):
         """
         Function to execute EPWE for a given potential with lattice vectors
         a=[a1,a2] in the space defined by X=[x1,x2]
@@ -38,10 +47,21 @@ class EPWE():
         V : 2D potential map
 
         """
-        G,K,bz   = self.brillouinZone(a)                                        # Determine the first Brillouin zne
-        Gnm,vg   = self.fourierCoefs(a,X,V,G)                                   # Determine the Fourier coefficients of the potential
-        U        = self.constructPotentialMatrix(vg)                            # Construct the potential matrix used to solve the TISE for a periodic potential
-        Ek,Coeff = self.solveTISE(Gnm,K,U,bz)                                   # Solve the TISE
+        name = "main"
+        self.running[name] = True
+        self.valid = False
+        
+        G,K,bz   = self.brillouinZone(a,initiator)                              # Determine the first Brillouin zne
+        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        
+        Gnm,vg   = self.fourierCoefs(a,X,V,G,initiator)                         # Determine the Fourier coefficients of the potential
+        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        
+        U        = self.constructPotentialMatrix(vg,initiator)                  # Construct the potential matrix used to solve the TISE for a periodic potential
+        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        
+        Ek,Coeff = self.solveTISE(Gnm,K,U,bz,initiator)                         # Solve the TISE
+        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
         
         self.a = a                                                              # Primitive lattice vectors
         self.X = X                                                              # Real space [x1,x2]
@@ -57,6 +77,10 @@ class EPWE():
         self.Coeff = Coeff                                                      # Wavefunction coefficients
         
         self.valid = True
+        
+        if(initiator): initiator.simFinished(True)
+        
+        self.stop("main"); return                                               # Sim has finished. Clear the running flag and return
         
     def save(self,name="EPWESIM"):
         """
@@ -128,7 +152,7 @@ class EPWE():
         
         self.valid = True
     
-    def brillouinZone(self,a):
+    def brillouinZone(self,a,initiator=None):
         """
         This function calculates the first Brillouin zone from the primitive 
         lattice vectors
@@ -144,6 +168,9 @@ class EPWE():
         bz : 2D map of the first Brillouin zone
 
         """
+        if(initiator and not self.checkEventFlags("main")):
+            initiator.progress("Mapping the first Brillouin zone")
+            
         print("Mapping the first Brillouin zone")
         N  = self.N
         ks = self.ks
@@ -186,7 +213,7 @@ class EPWE():
         print("Done")
         return np.array([Gn,Gm]), np.array([k1,k2]), bz
     
-    def fourierCoefs(self,a,X,V,G):
+    def fourierCoefs(self,a,X,V,G,initiator=None):
         """
         This function calculates 2N+1 Fourier coefficients for a periodic 2D
         function.
@@ -204,6 +231,8 @@ class EPWE():
         vg : Matrix containing all of the Fourier coefficients
 
         """
+        if(initiator and not self.checkEventFlags("main")):
+            initiator.progress("Constructing Fourier terms...0 %")
         print("Calculating Fourier Coefficients...")
         N = self.N
         
@@ -226,12 +255,18 @@ class EPWE():
                 Gnm.append(Gn[n] + Gm[m])
                 if(n%int(0.2*(2*N+1)) == 0):
                     if(m == 0):
-                        print(int(100*n/(2*N+1)),'%')
+                        progress = int(100*n/(2*N+1))
+                        print(progress,'%')
+                        if(initiator and not self.checkEventFlags("main")):
+                            progress = "Calculating Fourier terms..." + str(progress) + '%'
+                            initiator.progress(progress)
+            
+                if(self.checkEventFlags("main")): return 0,0                    # Sim has been stopped. Clear the running flag and return
         
         print("Done")
         return np.array(Gnm),vg
         
-    def constructPotentialMatrix(self,vg):
+    def constructPotentialMatrix(self,vg,initiator=None):
         """
         This function constructs the potential matrix used in solving the TISE
 
@@ -244,6 +279,8 @@ class EPWE():
         U : The potential matrix used in solving the TISE
 
         """
+        if(initiator and not self.checkEventFlags("main")):
+            initiator.progress("Constructing potential matrix...0 %")
         print("Constructing Potential Matrix")
         N = self.N
         
@@ -257,58 +294,19 @@ class EPWE():
                 diag = np.diag([v]*((2*N+1)*(2*N+1) - nv),n-1-nv)
             U += diag
             
-            if((nv%int(0.1*len(vv))) == 0): print(int(100*nv/len(vv))+1,'%')
+            if((nv%int(0.1*len(vv))) == 0):
+                progress = int(100*nv/len(vv))+1
+                print(progress,'%')
+                if(initiator and not self.checkEventFlags("main")):
+                    progress = "Constructing potential Matrix..." + str(progress) + '%'
+                    initiator.progress(progress)
+
+            if(self.checkEventFlags("main")): return 0                          # Sim has been stopped. Clear the running flag and return
         
         print("Done")
         return U
     
-    def rebuildPotential(self,scale):
-        """
-        This function reconstructs the potential, V, from the Fourier 
-        coefficients calculated in 'fourierCoefs'
-
-        Parameters
-        ----------
-        scale : Factor to plot the rebuilt potential over an extended real 
-                space. (i.e. X => X*scale)
-
-        Returns
-        -------
-        C       : The reconstructed potential
-        extent  : Real space extent (used for plotting, e.g. imshow)
-
-        """
-        print("Rebuilding Potential...")
-        N     = self.N
-        vg    = self.vg
-        Gn,Gm = self.G
-        
-        x1,x2 = self.X*scale
-        X1,X2 = np.meshgrid(x1,x2)
-        C  = np.zeros_like(X1,dtype = 'complex_')
-        
-        for n in np.arange(0,2*N+1):
-            exp_n = np.exp(i*(Gn[n][0]*X1 + Gn[n][1]*X2))
-            
-            for m in np.arange(0,2*N+1):
-                exp_m = np.exp(i*(Gm[m][0]*X1 + Gm[m][1]*X2))
-                C += vg[n,m]*exp_n*exp_m
-                if(n%int(0.2*(2*N+1)) == 0):
-                    if(m == 0):
-                        print(int(100*n/(2*N+1)),'%')
-        
-        print("Done")
-        
-        C = np.real(C) + np.imag(C)
-        extent = np.array([min(x1),max(x1),min(x2),max(x2)])
-        
-        self.C = {"C"      : C,
-                  "X"      : np.array([x1,x2]),
-                  "extent" : extent}
-        
-        return C,extent,np.array([x1,x2])
-    
-    def solveTISE(self,Gnm,K,U,bz):
+    def solveTISE(self,Gnm,K,U,bz,initiator):
         """
         This function solves the TISE for the system with periodic potential, V
 
@@ -325,6 +323,8 @@ class EPWE():
         Coeff : Fourier coefficients of the eigenstates/wavefunctions
 
         """
+        if(initiator and not self.checkEventFlags("main")):
+            initiator.progress("Solving TISE...0 %")
         print("Calculating Kinetic Terms and Eigen Values...")
         N     = self.N
         ks    = self.ks
@@ -352,11 +352,77 @@ class EPWE():
                 k = kn*ks+km
                 if(k > 10):
                     if((k%int(0.1*ks**2)) == 0):
-                        print(int(100*k/ks**2)+1,'%')
+                        progress = int(100*k/ks**2)+1
+                        print(progress,'%')
+                        if(initiator and not self.checkEventFlags("main")):
+                            progress = "Solving TISE..." + str(progress) + '%'
+                            initiator.progress(progress)
+            
+            if(self.checkEventFlags("main")): return 0,0                        # Sim has been stopped. Clear the running flag and return
+                
         print("Done")
         return Ek,Coeff
     
-    def getWavefunction(self,E,scale=1):
+    def rebuildPotential(self,scale,initiator=None):
+        """
+        This function reconstructs the potential, V, from the Fourier 
+        coefficients calculated in 'fourierCoefs'
+
+        Parameters
+        ----------
+        scale : Factor to plot the rebuilt potential over an extended real 
+                space. (i.e. X => X*scale)
+
+        Returns
+        -------
+        C       : The reconstructed potential
+        extent  : Real space extent (used for plotting, e.g. imshow)
+
+        """
+        self.running["potential"] = True
+        
+        print("Rebuilding Potential...")
+        N     = self.N
+        vg    = self.vg
+        Gn,Gm = self.G
+        
+        x1,x2 = self.X*scale
+        X1,X2 = np.meshgrid(x1,x2)
+        C  = np.zeros_like(X1,dtype = 'complex_')
+        
+        for n in np.arange(0,2*N+1):
+            exp_n = np.exp(i*(Gn[n][0]*X1 + Gn[n][1]*X2))
+            
+            for m in np.arange(0,2*N+1):
+                exp_m = np.exp(i*(Gm[m][0]*X1 + Gm[m][1]*X2))
+                C += vg[n,m]*exp_n*exp_m
+                if(n%int(0.2*(2*N+1)) == 0):
+                    if(m == 0):
+                        progress = int(100*n/(2*N+1))
+                        print(progress,'%')
+                        if(initiator and not self.checkEventFlags("potential")):
+                            initiator.progress(progress)
+            
+                if(initiator and self.checkEventFlags("potential")):
+                    self.stop("potential")
+                    return                                                      # Sim has been stopped. Clear the running flag and return
+        
+        print("Done")
+        
+        C = np.real(C) + np.imag(C)
+        extent = np.array([min(x1),max(x1),min(x2),max(x2)])
+        
+        self.C = {"C"      : C,
+                  "X"      : np.array([x1,x2]),
+                  "extent" : extent}
+        
+        if(initiator):
+            initiator.finish(True,C,extent,np.array([x1,x2]))
+        
+        self.stop("potential")
+        return C,extent,np.array([x1,x2])
+    
+    def getWavefunction(self,E,scale=1,initiator=None):
         """
         This function computes the real-space density distribution within a
         given energy range, E.
@@ -375,6 +441,8 @@ class EPWE():
         X      : Scaled real space
 
         """
+        self.running["map"] = True
+        
         print("Calculating Wavefunction...")
         N     = self.N
         bz    = self.bz
@@ -416,8 +484,15 @@ class EPWE():
                     count += 1
                     if(np.sum(B) > 10):
                         if((count%int(0.1*np.sum(B))) == 0):
-                            print(int(100*count/np.sum(B))+1,'%')
+                            progress = int(100*count/np.sum(B))+1
+                            print(progress,'%')
+                            if(initiator and not self.checkEventFlags("map")):
+                                initiator.progress(progress)
         
+                    if(initiator and self.checkEventFlags("map")):
+                        self.stop("map")
+                        return                                                  # Sim has been stopped. Clear the running flag and return
+                
         extent = np.array([min(x1),max(x1),min(x2),max(x2)])
         
         self.psi[energy] = {"E"      : E,
@@ -427,9 +502,14 @@ class EPWE():
                             "psi"    : psi}
         
         print("Done")
+        
+        if(initiator):
+            initiator.finish(True,psi.copy(),extent.copy(),np.array([x1,x2]).copy())
+        
+        self.stop("map")
         return psi.copy(),extent.copy(),np.array([x1,x2]).copy()
     
-    def getLDOS(self,Exmin,Exmax,dE,pts,x0s):
+    def getLDOS(self,Exmin,Exmax,dE,pts,x0s,initiator=""):
         """
         This function computes the local density of states at given x0 values
 
@@ -449,6 +529,8 @@ class EPWE():
         Ex    : Energy axis to plot LDOS
 
         """
+        self.running["LDOS"] = True
+        
         N     = self.N
         X     = self.X
         bz    = self.bz
@@ -489,8 +571,17 @@ class EPWE():
                             
                             ldos += abs(psi_k)**2
                             
+                        if(initiator and self.checkEventFlags("LDOS")):
+                            self.stop("LDOS")
+                            return                                              # Sim has been stopped. Clear the running flag and return
+                    
                 LDOSs[nx0,ne] = ldos
-                if(ne%int(0.1*len(Ex)) == 0): print(int(100*ne/len(Ex)),'%')
+                if(ne%int(0.1*len(Ex)) == 0):
+                    progress = int(100*ne/len(Ex))
+                    print(progress,'%')
+                    progressStr = "Point "+str(nx0+1)+'/'+str(len(x0s))+': '+str(progress)+' %'
+                    if(initiator and not self.checkEventFlags("LDOS")):
+                        initiator.progress(progressStr)
         
         LDOSs /= np.max(LDOSs)
         self.LDOS    = LDOSs
@@ -498,4 +589,13 @@ class EPWE():
         self.LDOSx0s = x0s
         
         print("Done")
+        if(initiator):
+            initiator.finish(True,LDOSs,Ex)
+        
+        self.stop("LDOS")
         return LDOSs,Ex
+        
+    def checkEventFlags(self,name):
+        ldict = {}
+        exec("running_" + name + " = global_." + name + "_running.is_set()",globals(),ldict)
+        if(not ldict['running_'+name]): return True
