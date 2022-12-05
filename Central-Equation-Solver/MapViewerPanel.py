@@ -21,6 +21,7 @@ class MapViewerPanel(Panel):
         self.buttons()
         self.map = 0
         self.im  = []
+        self.init = True
 
     ###########################################################################
     # Panel
@@ -149,8 +150,8 @@ class MapViewerPanel(Panel):
         
     def toggleCaption(self):
         self.plotCaption = not self.plotCaption
-        self.update(upd=[0])
+        self.update()
     
     def toggleScaleBar(self):
         self.scaleBar = not self.scaleBar
-        self.update(upd=[0])
+        self.update()
