@@ -35,7 +35,7 @@ class PotentialPanel(Panel):
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
     def buttonHelp(self):
-        helpStr = "Rebuild the potential from with the N coefficients"
+        helpStr = "Rebuild the potential from the N coefficients"
         self.btn['Rebuild'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Change the colour map"
@@ -43,6 +43,9 @@ class PotentialPanel(Panel):
         
         helpStr = "Export the main panel plot as a png"
         self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Show/hide overlay features"
+        self.btn['Overlay'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Close this panel"
         self.btn['Close'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))

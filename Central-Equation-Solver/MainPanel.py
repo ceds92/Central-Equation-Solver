@@ -97,6 +97,12 @@ class MainPanel(Panel):
         helpStr = "Select a potntial type"
         self.btn['Potential'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
+        helpStr = "Change the colour map"
+        self.btn['cmap'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Export the panel figure as a png"
+        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
         helpStr = "Show/hide overlay features"
         self.btn['Overlay'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         

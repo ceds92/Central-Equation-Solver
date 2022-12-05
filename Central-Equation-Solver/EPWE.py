@@ -569,7 +569,7 @@ class EPWE():
                             kg1 = kg[:,0].reshape((n,1))
                             kg2 = kg[:,1].reshape((n,1))
                             
-                            exp = np.exp(i*(kg1[...,None]*x1[x0idx[0]] + kg2[...,None]*x2[x0idx[1]]))
+                            exp = np.exp(i*(kg1[...,None]*x1[x0idx[0]] + -kg2[...,None]*x2[x0idx[1]]))
                             psi_k = np.sum(exp*Coeff[:,row,kn,km][...,None,None],0)
                             
                             ldos += abs(psi_k)**2
