@@ -1,5 +1,7 @@
 # Central-Equation-Solver
-This program solves the 2D TISE with a periodic potential 
+This program solves the 2D TISE with a periodic potential
+
+[![DOI](https://zenodo.org/badge/567526733.svg)](https://zenodo.org/badge/latestdoi/567526733)
 
 # Installation
 clone the repository and run 'pip install .' from the root directory
