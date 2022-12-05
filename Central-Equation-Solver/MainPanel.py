@@ -391,6 +391,8 @@ class MainPanel(Panel):
         pkldict["potparams"]["type"]   = potType
         pkldict["potparams"]["params"] = params
         
+        pkldict["simparams"] = self.potentialTypes["SimParams"][1]
+        
         pickle.dump(pkldict,open(path,'wb'))
         
         self.updateHelpLabel("Save successful!")
@@ -409,6 +411,17 @@ class MainPanel(Panel):
         pkldict = pickle.load(open(path,'rb'))
         self.potentialType = pkldict["potparams"]["type"]
         self.potentialTypes[self.potentialType][1] = pkldict["potparams"]["params"]
+        
+        self.potentialTypes["SimParams"][1] = pkldict["simparams"]
+        
+        self.hideForm(self.potentialType)
+        self.showForm(self.potentialType)
+        
+        self.hideForm("SimParams")
+        self.showForm("SimParams")
+        
+        self.btn['Potential'].set(self.potentialType)
+        self.forms["SimParams"]['buttons'][0][0].configure(fg_color=['#3B8ED0', '#1F6AA5'])
         
         self.update()
         

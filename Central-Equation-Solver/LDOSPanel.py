@@ -170,16 +170,16 @@ class LDOSPanel(Panel):
             self.forms["LDOSForm"]['buttons'][0][0].configure(text="RUN")
             self.updateHelpLabel("Stopped!")
             return
-        
-        self.forms["LDOSForm"]['buttons'][0][0].configure(text="STOP")
-        self.updateHelpLabel("Calculating LDOS...")
-        
+            
         emin,emax,dE,pts = params
         x0s = np.array(self.x0s)
         
         if(not len(x0s)):
             self.updateHelpLabel("Add at least one marker on the main figure before running")
             return
+        
+        self.forms["LDOSForm"]['buttons'][0][0].configure(text="STOP")
+        self.updateHelpLabel("Calculating LDOS...")
         
         func = lambda : self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s,initiator=self)
         super().threadTask(func)

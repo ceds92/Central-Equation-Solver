@@ -23,7 +23,10 @@ class EPWE():
         self.Coeff  = []                                                        # This is where the coefficients of the wavefunction go
         self.psi    = {}                                                        # This is where calculated wavefunctions get stored
         self.C      = {}                                                        # This is where the reconstructed potential will go
-        self.LDOS   = []                                                        # Computed LDOS curves go here
+        
+        self.LDOS    = []                                                       # Computed LDOS curves go here
+        self.LDOSEx  = []
+        self.LDOSx0s = []
         
         self.valid = False
         self.running = {"main":False,
