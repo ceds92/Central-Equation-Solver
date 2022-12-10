@@ -21,7 +21,7 @@ class Panel():
     zunit = 1e-12; xunit = 1e-9                                                 # convert xy units to nm and z units to pm
     helpText = ""
     imprint  = False
-    def __init__(self, master, width, height, dpi, mainPanel=None,length=4,btnSize=1,plotType=''):
+    def __init__(self, master, width, height, dpi, mainPanel=None,length=4,btnSize=1,plotType='', scaleFactor=1):
         self.master = master
         self.width  = width
         self.height = height
@@ -30,9 +30,12 @@ class Panel():
         self.dpi    = dpi
         self.mainPanel = mainPanel
         
+        if(not mainPanel): self.scaleFactor = scaleFactor
+        else:              self.scaleFactor = self.mainPanel.scaleFactor
+        
         # Set up canvas
         self.canvas = FigureCanvasTkAgg(master=master)
-        self.canvas.get_tk_widget().configure(width=width, height=height)
+        self.canvas.get_tk_widget().configure(width=width*self.scaleFactor, height=height*self.scaleFactor)
         
         # Figure
         self.fig = plt.figure(figsize=(width/dpi,height/dpi),dpi=dpi)

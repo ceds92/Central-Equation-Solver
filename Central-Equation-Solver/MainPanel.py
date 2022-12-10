@@ -32,9 +32,9 @@ class MainPanel(Panel):
     ###########################################################################
     # Constructor
     ###########################################################################
-    def __init__(self, master, width=512, height=512, dpi=96):
+    def __init__(self, master, width=512, height=512, dpi=96, scaleFactor=1):
         self.init()
-        super().__init__(master, width=width, height=height, dpi=dpi, length=8, btnSize=2)
+        super().__init__(master, width=width, height=height, dpi=dpi, length=8, btnSize=2, scaleFactor=scaleFactor)
         super().initGlobs(name="main")
         self.buildSubPanels()
         self.buttons()
