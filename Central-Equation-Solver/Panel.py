@@ -14,6 +14,7 @@ from matplotlib import colors
 from matplotlib_scalebar.scalebar import ScaleBar
 import global_
 import threading
+import pickle
 
 class Panel():
     pos    = 0                                                                  # This panel's column position. init to zero. gets added to the RHS of the window when created
@@ -211,6 +212,10 @@ class Panel():
         path = filedialog.askdirectory(title='Select Folder')                   # shows dialog box and return the path
         return path
     
+    def saveFile(self,initialfile="",title="Save as"):
+        path = filedialog.asksaveasfilename(title=title,initialfile=initialfile)
+        return path
+        
     def exportPNG(self,dpi=0):
         if(not self.init): return
         if(not dpi): dpi = self.dpi
@@ -222,6 +227,14 @@ class Panel():
         if(not path.endswith('.png')): path += '.png'
         self.fig.savefig(path,format='png',dpi=dpi)
     
+    def exportPickle(self,pklDict,initialfile="pickle"):
+        if(not initialfile.endswith('.pk')): initialfile += '.pk'
+        path = self.saveFile(initialfile=initialfile)
+        if path == "": return
+        
+        if(not path.endswith('.pk')): path += '.pk'
+        pickle.dump(pklDict,open(path,'wb'))
+        
     def threadTask(self,func):
         if self.running.is_set():
             self.updateHelpLabel("Simulation already running!")

@@ -12,6 +12,8 @@ from BandStructure2D import BandStructure2D
 from PotentialPanel import PotentialPanel
 from MapViewerPanel import MapViewerPanel
 from LDOSPanel import LDOSPanel
+from SweepPanel import SweepPanel
+from FitPanel import FitPanel
 import customtkinter as ctk
 from   tkinter import filedialog
 import numpy as np
@@ -21,6 +23,7 @@ import os
 import potentials as pot
 from EPWE import EPWE
 import pickle
+import global_
 
 matplotlib.use("TkAgg")
 
@@ -53,6 +56,8 @@ class MainPanel(Panel):
         self.potentialTypes = {"Hexagonal" : [pot.hexagonal_primitive,  [1,0.3,101,-2]],
                                "Kagome"    : [pot.kagome_primitive,     [1,0.4,101,-2]],
                                "Muffin Tin": [pot.muffin_primitive,     [1,0.25,101,-2.5]],
+                               "Big Star"  : [pot.HATCu_bigstar,        [0.93,0.9,201,1,0.55,0.2,0.4,-0.07]],
+                               "Small Star": [pot.HATCu_smallstar,      [0.68,0.9,201,1,0.55,0.2,0.4,-0.07]],
                                "SimParams" : [self.run,                 [31,5,0.4]]}
         
     ###########################################################################
@@ -67,15 +72,17 @@ class MainPanel(Panel):
         self.potentialPanel = PotentialPanel(*commonParams)
         self.ldosPanel = LDOSPanel(*commonParams)
         self.mapViewerPanel = MapViewerPanel(*commonParams)
+        self.sweepPanel = SweepPanel(*commonParams)
+        self.fitPanel = FitPanel(*commonParams)
         
-        self.panels = [self.mapsPanel,self.bs3DPanel,self.bs2DPanel,self.potentialPanel,self.ldosPanel,self.mapViewerPanel]
+        self.panels = [self.mapsPanel,self.bs3DPanel,self.bs2DPanel,self.potentialPanel,self.ldosPanel,self.mapViewerPanel,self.sweepPanel,self.fitPanel]
         
     def buttons(self):
         self.btn = {
             "Potential":ctk.CTkComboBox(self.master,values=["Potential"],   command=self.potselect),      # Dropdown to select potential map type
             "Overlay":  ctk.CTkComboBox(self.master,values=["Overlay"],     command=self.overlay),        # Dropdown to change overlay display
             "cmap":     ctk.CTkButton(self.master, text="viridis",          command=super()._cmap),       # Button to cycle through colour maps
-            "PNG":      ctk.CTkButton(self.master, text="Exp PNG",          command=super().exportPNG),   # Export the canvas to png
+            "Export":   ctk.CTkComboBox(self.master,values=["Export"],      command=self.export),         # Dropdown to export the figure
             "OpenPanel":ctk.CTkComboBox(self.master,values=["Open Panel"],  command=self.openPanel),      # Dropdown to open other panels
             "Save":     ctk.CTkButton(self.master, text="Save",             command=self.save),           # Save all session to a .epwe file
             "Load":     ctk.CTkButton(self.master, text="Load",             command=self.load),           # Load a .epwe file
@@ -87,11 +94,14 @@ class MainPanel(Panel):
         self.btn['Potential'].configure(values=potentialValues,fg_color=['#3B8ED0', '#1F6AA5'])
         self.btn['Potential'].set(self.potentialType)
         
-        openPanelValues = ["Open Panel","Rebuilt Potential","2D Bands","3D Bands","Map Generator","Map Viewer","LDOS"]
+        openPanelValues = ["Open Panel","Rebuilt Potential","2D Bands","3D Bands","Map Generator","Map Viewer","LDOS","Sweep","Fitting"]
         self.btn['OpenPanel'].configure(values=openPanelValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
         overlayValues = ["Overlay","Caption","Scale Bar"]
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
+
+        exportValues = ["Export","PNG","Pickle"]
+        self.btn['Export'].configure(values=exportValues,fg_color=['#3B8ED0', '#1F6AA5'])
     
     def buttonHelp(self):
         helpStr = "Select a potntial type"
@@ -100,8 +110,8 @@ class MainPanel(Panel):
         helpStr = "Change the colour map"
         self.btn['cmap'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
-        helpStr = "Export the panel figure as a png"
-        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        helpStr = "Export figure"
+        self.btn['Export'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Show/hide overlay features"
         self.btn['Overlay'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
@@ -198,8 +208,14 @@ class MainPanel(Panel):
         bottom, top = self.ax.get_ylim();                                       # Remember plot extent
         
         if(self.ldosPanel.active):
-            for x0 in self.ldosPanel.x0s:
-                self.ax.plot(x0[0],x0[1],'.',markersize=14)
+            for c,x0 in enumerate(self.ldosPanel.x0s):
+                self.ax.plot(x0[0],x0[1],'.',markersize=14,c=self.mplibColours[c])
+            if(len(self.currentstsPos)):
+                self.ax.plot(self.currentstsPos[0],self.currentstsPos[1],'x',markersize=14)
+                
+        if(self.sweepPanel.active):
+            for c,x0 in enumerate(self.sweepPanel.x0s):
+                self.ax.plot(x0[0],x0[1],'*',markersize=14,c=self.mplibColours[c])
             if(len(self.currentstsPos)):
                 self.ax.plot(self.currentstsPos[0],self.currentstsPos[1],'x',markersize=14)
         
@@ -263,26 +279,36 @@ class MainPanel(Panel):
             for b in self.forms[name]['buttons']:
                 b[0].grid_forget()
                 
-    def submitForm(self,name):
-        params    = []
-        oldparams = self.potentialTypes[name][1]
+    def submitForm(self,name,skipParams=False):
         paramsChanged = False
-        for p,e in enumerate(self.forms[name]['entries']):
-            try:
-                params.append(np.float32(e[0].get()))
-            except:
-                self.updateHelpLabel("Error in form: All values must be numeric.")
-                return
-            if(not np.float32(oldparams[p]) == params[p]):
-                paramsChanged = True
-        
-        self.potentialTypes[name][1] = params
+        params = self.potentialTypes[name][1]
+        if(not skipParams):
+            params    = []
+            oldparams = self.potentialTypes[name][1]
+            for p,e in enumerate(self.forms[name]['entries']):
+                try:
+                    params.append(np.float32(e[0].get()))
+                except:
+                    self.updateHelpLabel("Error in form: All values must be numeric.")
+                    return
+                if(not np.float32(oldparams[p]) == params[p]):
+                    paramsChanged = True
+            
+            self.potentialTypes[name][1] = params
         
         if(name == "SimParams"):
             if(self.sim.running["main"]):
                 super().stop()
+                cnt = 0
                 while(self.sim.running["main"]):
                     print("waiting to stop")
+                    cnt += 1
+                    if(cnt > 5):
+                        self.sim.running["main"] = False
+                        self.sim.valid = False
+                        print("An error occured - probably due to lack of memory, try reducing ks or N and run again...")
+                        global_.main_running.clear()
+                        break
                 self.updateHelpLabel("Simulation stopped.")
                 self.forms["SimParams"]['buttons'][0][0].configure(text="Run Simulation")
                 self.forms["SimParams"]['buttons'][0][0].configure(fg_color='red')
@@ -328,17 +354,21 @@ class MainPanel(Panel):
     ###########################################################################
     # Drawing STS Markers
     ###########################################################################
-    def addx0Bind(self):
+    def addx0Bind(self,name):
         if(self.bound): return
         self.bound = True
-        self.lcMarkSTSBind     = self.canvas.get_tk_widget().bind('<Button-1>', self.addx0)
+        if(name == self.ldosPanel.name):
+            self.lcMarkSTSBind = self.canvas.get_tk_widget().bind('<Button-1>', self.addx0) # Default to LDOS Panel
+        if(name == self.sweepPanel.name):
+            self.lcMarkSTSBind = self.canvas.get_tk_widget().bind('<Button-1>', self.addx0_sweep) # Placing markers from sweep panel
+            
         self.rcMarkSTSBind     = self.canvas.get_tk_widget().bind('<Button-3>', self.cancelx0)
         self.motionMarkSTSBind = self.canvas.get_tk_widget().bind('<Motion>',   self.placex0)
         
         self.updateHelpLabel("Place the LDOS marker on the image\n"
                              + "Left click to place\nRight click to cancel")
         
-    def addx0Unind(self):
+    def addx0Unbind(self):
         self.canvas.get_tk_widget().unbind('<Button-1>', self.lcMarkSTSBind)
         self.canvas.get_tk_widget().unbind('<Button-3>', self.rcMarkSTSBind)
         self.canvas.get_tk_widget().unbind('<Motion>',   self.motionMarkSTSBind)
@@ -347,7 +377,7 @@ class MainPanel(Panel):
         self.updateHelpLabel("")
         
     def cancelx0(self,event):
-        self.addx0Unind()
+        self.addx0Unbind()
         self.currentstsPos = []
         self.update(upd=[0])
         
@@ -362,7 +392,21 @@ class MainPanel(Panel):
         self.ldosPanel.setx0(stsPos)
         self.currentstsPos = []
         
-        self.addx0Unind()
+        self.addx0Unbind()
+        self.update(upd=[0])
+        
+    def addx0_sweep(self,event):
+        size = self.fig.get_size_inches()*self.fig.dpi                          # size in pixels
+        x = event.x
+        y = size[1] - event.y
+        X = super()._getX(x)
+        Y = super()._getY(y)
+        
+        stsPos = [X,Y]
+        self.sweepPanel.setx0(stsPos)
+        self.currentstsPos = []
+        
+        self.addx0Unbind()
         self.update(upd=[0])
     
     def placex0(self,event):
@@ -464,6 +508,8 @@ class MainPanel(Panel):
             self.showForm(option)
             self.forms["SimParams"]['buttons'][0][0].configure(fg_color='Red')
             self.update()
+            
+            if(self.sweepPanel.active): self.sweepPanel.updateParams()
     
     def openPanel(self,option):
         if(option == "Map Generator"):      self.mapsPanel.create()
@@ -472,6 +518,8 @@ class MainPanel(Panel):
         if(option == "3D Bands"):           self.bs3DPanel.create()
         if(option == "Rebuilt Potential"):  self.potentialPanel.create()
         if(option == "LDOS"):               self.ldosPanel.create()
+        if(option == "Sweep"):              self.sweepPanel.create()
+        if(option == "Fitting"):            self.fitPanel.create()
         
         self.btn['OpenPanel'].set("Open Panel")
         
@@ -483,6 +531,19 @@ class MainPanel(Panel):
         if(option == "Scale Bar"):  self.toggleScaleBar()
         if(option == "Export PNG"): super().exportPNG()
         self.btn['Overlay'].set("Overlay")
+    
+    def export(self,option):
+        if(option == "PNG"): super().exportPNG()
+        if(option == "Pickle"): self.exportPickle()
+        self.btn['Export'].set("Export")
+    
+    def exportPickle(self):
+        pklDict = {"V": self.V,
+                   "a": self.a,
+                   "X": self.X,
+                   "extent": self.extent}
+        
+        super().exportPickle(pklDict=pklDict,initialfile="potential")
         
     def toggleCaption(self):
         self.plotCaption = not self.plotCaption

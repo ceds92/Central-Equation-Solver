@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 class PotentialPanel(Panel):
     scaleBar = True
+    init = False
     ###########################################################################
     # Constructor
     ###########################################################################
@@ -18,6 +19,7 @@ class PotentialPanel(Panel):
         super().initGlobs(name="potential")
         self.buttons()
         self.rebuiltV = []
+        self.init = 1
         
     ###########################################################################
     # Panel
@@ -26,11 +28,14 @@ class PotentialPanel(Panel):
         self.btn = {
             "Rebuild": ctk.CTkButton(self.master, text="Rebuild",       command=self.refresh),
             "cmap":    ctk.CTkButton(self.master, text="viridis",       command=super()._cmap),     # Button to cycle through colour maps
-            "PNG":     ctk.CTkButton(self.master, text="Exp PNG",       command=super().exportPNG), # Export the canvas to png
+            "Export":  ctk.CTkComboBox(self.master,values=["Export"],   command=self.export),       # Dropdown to export the figure
             "Overlay": ctk.CTkComboBox(self.master,values=["Overlay"],  command=self.overlay),      # Dropdown to change overlay display
             "Close":   ctk.CTkButton(self.master, text="Close",         command=self.destroy)
             }
     
+        exportValues = ["Export","PNG","Pickle"]
+        self.btn['Export'].configure(values=exportValues,fg_color=['#3B8ED0', '#1F6AA5'])
+        
         overlayValues = ["Overlay","Scale Bar"]
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
@@ -41,8 +46,8 @@ class PotentialPanel(Panel):
         helpStr = "Change the colour map"
         self.btn['cmap'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
-        helpStr = "Export the main panel plot as a png"
-        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        helpStr = "Export figure"
+        self.btn['Export'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Show/hide overlay features"
         self.btn['Overlay'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
@@ -130,6 +135,19 @@ class PotentialPanel(Panel):
         if(option == "Scale Bar"):  self.toggleScaleBar()
         self.btn['Overlay'].set("Overlay")
     
+    def export(self,option):
+        if(option == "PNG"): super().exportPNG()
+        if(option == "Pickle"): self.exportPickle()
+        self.btn['Export'].set("Export")
+    
+    def exportPickle(self):
+        if(not len(self.rebuiltV)): return
+        
+        pklDict = {"rebuiltV": self.rebuiltV,
+                   "extent"  : self.extent}
+        
+        super().exportPickle(pklDict=pklDict,initialfile="rebuiltV")
+        
     def toggleScaleBar(self):
         self.scaleBar = not self.scaleBar
         self.update()

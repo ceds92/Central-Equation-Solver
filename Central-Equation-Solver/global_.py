@@ -13,6 +13,10 @@ global main_running
 global LDOS_task
 global LDOS_running
 
+# LDOS
+global Sweep_task
+global Sweep_running
+
 # Map
 global map_task
 global map_running

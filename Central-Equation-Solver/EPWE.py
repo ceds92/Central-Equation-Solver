@@ -31,11 +31,12 @@ class EPWE():
         self.valid = False
         self.running = {"main":False,
                         "LDOS":False,
+                        "Sweep":False,
                         "map": False,
                         "potential": False}
     
-    def stop(self,name):
-        exec("global_." + name + "_running.clear()")
+    def stop(self,name,initiator=None):
+        if(initiator): exec("global_." + name + "_running.clear()")
         self.running[name] = False
         
     def run(self,a,X,V,initiator=None):
@@ -55,16 +56,16 @@ class EPWE():
         self.valid = False
         
         G,K,bz   = self.brillouinZone(a,initiator)                              # Determine the first Brillouin zne
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         Gnm,vg   = self.fourierCoefs(a,X,V,G,initiator)                         # Determine the Fourier coefficients of the potential
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         U        = self.constructPotentialMatrix(vg,initiator)                  # Construct the potential matrix used to solve the TISE for a periodic potential
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         Ek,Coeff = self.solveTISE(Gnm,K,U,bz,initiator)                         # Solve the TISE
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         self.a = a                                                              # Primitive lattice vectors
         self.X = X                                                              # Real space [x1,x2]
@@ -83,7 +84,7 @@ class EPWE():
         
         if(initiator): initiator.simFinished(True)
         
-        self.stop("main"); return                                               # Sim has finished. Clear the running flag and return
+        self.stop("main",initiator)                                             # Sim has finished. Clear the running flag and return
         
     def save(self,name="EPWESIM"):
         """
@@ -264,7 +265,7 @@ class EPWE():
                             progress = "Calculating Fourier terms..." + str(progress) + '%'
                             initiator.progress(progress)
             
-                if(self.checkEventFlags("main")): return 0,0                    # Sim has been stopped. Clear the running flag and return
+                if(initiator and self.checkEventFlags("main")): return 0,0      # Sim has been stopped. Clear the running flag and return
         
         print("Done")
         return np.array(Gnm),vg
@@ -304,7 +305,7 @@ class EPWE():
                     progress = "Constructing potential Matrix..." + str(progress) + '%'
                     initiator.progress(progress)
 
-            if(self.checkEventFlags("main")): return 0                          # Sim has been stopped. Clear the running flag and return
+            if(initiator and self.checkEventFlags("main")): return 0            # Sim has been stopped. Clear the running flag and return
         
         print("Done")
         return U
@@ -341,6 +342,15 @@ class EPWE():
         Coeff = Coeff.reshape((n,n,len(k1),len(k2)))                            # Can't make an np.array this shape unless we do it like this for some reason
         for kn,kx in enumerate(k1):
             for km,ky in enumerate(k2):
+                k = kn*ks+km
+                if(k > 10):
+                    if((k%int(0.1*ks**2)) == 0):
+                        progress = int(100*k/ks**2)+1
+                        print(progress,'%')
+                        if(initiator and not self.checkEventFlags("main")):
+                            progress = "Solving TISE..." + str(progress) + '%'
+                            initiator.progress(progress)
+                            
                 if(bz[kn,km] == 0): continue
                 kg = np.array([kx,ky]) - Gnm[n-int(n/2):n+int(n/2)+1]
                 diag = ((h_bar**2)/(2*m_e*m_eff))*(npl.norm(kg,axis=1)**2)
@@ -351,17 +361,8 @@ class EPWE():
                 vals,vecs        = npl.eigh(H)
                 Ek[:,kn,km]      = vals
                 Coeff[:,:,kn,km] = vecs
-                
-                k = kn*ks+km
-                if(k > 10):
-                    if((k%int(0.1*ks**2)) == 0):
-                        progress = int(100*k/ks**2)+1
-                        print(progress,'%')
-                        if(initiator and not self.checkEventFlags("main")):
-                            progress = "Solving TISE..." + str(progress) + '%'
-                            initiator.progress(progress)
             
-            if(self.checkEventFlags("main")): return 0,0                        # Sim has been stopped. Clear the running flag and return
+            if(initiator and self.checkEventFlags("main")): return 0,0          # Sim has been stopped. Clear the running flag and return
                 
         print("Done")
         return Ek,Coeff
@@ -407,7 +408,7 @@ class EPWE():
                             initiator.progress(progress)
             
                 if(initiator and self.checkEventFlags("potential")):
-                    self.stop("potential")
+                    self.stop("potential",initiator)
                     return                                                      # Sim has been stopped. Clear the running flag and return
         
         print("Done")
@@ -422,7 +423,7 @@ class EPWE():
         if(initiator):
             initiator.finish(True,C,extent,np.array([x1,x2]))
         
-        self.stop("potential")
+        self.stop("potential",initiator)
         return C,extent,np.array([x1,x2])
     
     def getWavefunction(self,E,scale=1,initiator=None):
@@ -493,7 +494,7 @@ class EPWE():
                                 initiator.progress(progress)
         
                     if(initiator and self.checkEventFlags("map")):
-                        self.stop("map")
+                        self.stop("map",initiator)
                         return                                                  # Sim has been stopped. Clear the running flag and return
                 
         extent = np.array([min(x1),max(x1),min(x2),max(x2)])
@@ -509,7 +510,7 @@ class EPWE():
         if(initiator):
             initiator.finish(True,psi.copy(),extent.copy(),np.array([x1,x2]).copy())
         
-        self.stop("map")
+        self.stop("map",initiator)
         return psi.copy(),extent.copy(),np.array([x1,x2]).copy()
     
     def getLDOS(self,Exmin,Exmax,dE,pts,x0s,initiator=""):
@@ -532,7 +533,8 @@ class EPWE():
         Ex    : Energy axis to plot LDOS
 
         """
-        self.running["LDOS"] = True
+        if(not initiator): self.running["LDOS"] = True
+        else: self.running[initiator.name] = True
         
         N     = self.N
         X     = self.X
@@ -574,8 +576,8 @@ class EPWE():
                             
                             ldos += abs(psi_k)**2
                             
-                        if(initiator and self.checkEventFlags("LDOS")):
-                            self.stop("LDOS")
+                        if(initiator and self.checkEventFlags(initiator.name)):
+                            self.stop(initiator.name,initiator)
                             return                                              # Sim has been stopped. Clear the running flag and return
                     
                 LDOSs[nx0,ne] = ldos
@@ -583,7 +585,7 @@ class EPWE():
                     progress = int(100*ne/len(Ex))
                     print(progress,'%')
                     progressStr = "Point "+str(nx0+1)+'/'+str(len(x0s))+': '+str(progress)+' %'
-                    if(initiator and not self.checkEventFlags("LDOS")):
+                    if(initiator and not self.checkEventFlags(initiator.name)):
                         initiator.progress(progressStr)
         
         LDOSs /= np.max(LDOSs)
@@ -594,8 +596,9 @@ class EPWE():
         print("Done")
         if(initiator):
             initiator.finish(True,LDOSs,Ex)
-        
-        self.stop("LDOS")
+            self.stop(initiator.name,initiator)
+        else:
+            self.stop("LDOS",initiator)
         return LDOSs,Ex
         
     def checkEventFlags(self,name):
