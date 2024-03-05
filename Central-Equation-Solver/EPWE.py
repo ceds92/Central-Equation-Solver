@@ -457,7 +457,7 @@ class EPWE():
         n     = int((1+(2*N+1)**2)/2)                                           # The dimension of the hamiltonian
         bound = int(n/2)
         
-        B = Ek == E
+        #B = Ek == E
         energy = E
         if(np.array(E).shape):
             emin = E[0]; emax = E[1]
