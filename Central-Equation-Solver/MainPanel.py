@@ -13,7 +13,6 @@ from PotentialPanel import PotentialPanel
 from MapViewerPanel import MapViewerPanel
 from LDOSPanel import LDOSPanel
 from SweepPanel import SweepPanel
-from FitPanel import FitPanel
 import customtkinter as ctk
 from   tkinter import filedialog
 import numpy as np
@@ -71,9 +70,8 @@ class MainPanel(Panel):
         self.ldosPanel = LDOSPanel(*commonParams)
         self.mapViewerPanel = MapViewerPanel(*commonParams)
         self.sweepPanel = SweepPanel(*commonParams)
-        self.fitPanel = FitPanel(*commonParams)
         
-        self.panels = [self.mapsPanel,self.bs3DPanel,self.bs2DPanel,self.potentialPanel,self.ldosPanel,self.mapViewerPanel,self.sweepPanel,self.fitPanel]
+        self.panels = [self.mapsPanel,self.bs3DPanel,self.bs2DPanel,self.potentialPanel,self.ldosPanel,self.mapViewerPanel,self.sweepPanel]
         
     def buttons(self):
         self.btn = {
@@ -92,7 +90,7 @@ class MainPanel(Panel):
         self.btn['Potential'].configure(values=potentialValues,fg_color=['#3B8ED0', '#1F6AA5'])
         self.btn['Potential'].set(self.potentialType)
         
-        openPanelValues = ["Open Panel","Rebuilt Potential","2D Bands","3D Bands","Map Generator","Map Viewer","LDOS","Sweep","Fitting"]
+        openPanelValues = ["Open Panel","Rebuilt Potential","2D Bands","3D Bands","Map Generator","Map Viewer","LDOS","Sweep"]
         self.btn['OpenPanel'].configure(values=openPanelValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
         overlayValues = ["Overlay","Caption","Scale Bar"]
@@ -517,7 +515,6 @@ class MainPanel(Panel):
         if(option == "Rebuilt Potential"):  self.potentialPanel.create()
         if(option == "LDOS"):               self.ldosPanel.create()
         if(option == "Sweep"):              self.sweepPanel.create()
-        if(option == "Fitting"):            self.fitPanel.create()
         
         self.btn['OpenPanel'].set("Open Panel")
         

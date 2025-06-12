@@ -236,7 +236,7 @@ class EPWE():
         
         Gnm   = []                                                              # Initialse array containing all combinations of the reciprocal vectors
         Gn,Gm = G                                                               # Reciprocal lattice vectors
-        vg = np.zeros(((2*N+1),(2*N+1)),dtype = 'complex_')                     # Initialise the matrix which will contain the fourier coefficients of the potential, V                                     
+        vg = np.zeros(((2*N+1),(2*N+1)),dtype = 'complex')                     # Initialise the matrix which will contain the fourier coefficients of the potential, V                                     
         
         for n in np.arange(0,2*N+1):                                            # Summing over all combinations of Gn and Gm...
             exp_n = np.exp(-i*(Gn[n][0]*X1 + Gn[n][1]*X2))                      # Exponential term for this Gn
@@ -392,7 +392,7 @@ class EPWE():
         
         x1,x2 = self.X*scale
         X1,X2 = np.meshgrid(x1,x2)
-        C  = np.zeros_like(X1,dtype = 'complex_')
+        C  = np.zeros_like(X1,dtype = 'complex')
         
         for n in np.arange(0,2*N+1):
             exp_n = np.exp(i*(Gn[n][0]*X1 + Gn[n][1]*X2))
