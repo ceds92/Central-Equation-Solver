@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 25 07:59:08 2022
+Created on Sun Dec 11 11:32:44 2022
 
 @author: jced0001
 """
@@ -9,11 +9,11 @@ from Panel import Panel
 import customtkinter as ctk
 import numpy as np
 from scipy.signal import savgol_filter as savgol
-import pickle
-from   tkinter import filedialog
+import time
+import copy
 
-class LDOSPanel(Panel):
-    name = "LDOS"
+class SweepPanel(Panel):
+    name = "Sweep"
     ###########################################################################
     # Constructor
     ###########################################################################
@@ -36,35 +36,40 @@ class LDOSPanel(Panel):
     ###########################################################################
     def buttons(self):
         self.btn = {
-            "Addx0": ctk.CTkButton(self.master, text="Add LDOS",command=self.addx0),
-            "Undo":  ctk.CTkButton(self.master, text="Undo",    command=self.undo),
-            "Grid":  ctk.CTkButton(self.master, text="Grid",    command=self.toggleGrid),
-            "Export":ctk.CTkButton(self.master, text="Exp LDOS",command=self.exportldos),
-            "PNG":   ctk.CTkButton(self.master, text="Exp PNG", command=super().exportPNG), # Export the canvas to png
+            "Addx0": ctk.CTkButton(self.master, text="Add LDOS",        command=self.addx0),
+            "Undo":  ctk.CTkButton(self.master, text="Undo",            command=self.undo),
+            "Grid":  ctk.CTkButton(self.master, text="Grid",            command=self.toggleGrid),
+            "Param": ctk.CTkComboBox(self.master,values=["Parameter"],  command=self.paramSelect), # Dropdown to select parameter to sweep
+            # "PNG":   ctk.CTkButton(self.master, text="Exp PNG", command=super().exportPNG), # Export the canvas to png
+            "Export":ctk.CTkComboBox(self.master,values=["Export"],     command=self.export),         # Dropdown to export the figure
             "Close": ctk.CTkButton(self.master, text="Close",   command=self.destroy)
             }
+        
+        exportValues = ["Export","PNG","Pickle"]
+        self.btn['Export'].configure(values=exportValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
         helpStr = "Place an LDOS marker on the potential in the left figure"
         self.btn['Addx0'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
     
         helpStr = "Undo the last LDOS marker"
         self.btn['Undo'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+    
+        helpStr = "Select a paremeter to sweep"
+        self.btn['Param'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Close this panel"
         self.btn['Close'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Toggle grid lines on the plot"
         self.btn['Grid'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
-        
-        helpStr = "Export the panel figure as a png"
-        self.btn['PNG'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
-        
-        helpStr = "Export LDOS curves as a pickled file"
+
+        helpStr = "Export figure/curves"
         self.btn['Export'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
-    
+        
     def special(self):
         params = []
         params.append(['Emin','Emax','dE'])
+        params.append(['Pmin','Pmax','nP'])
         params.append(['Pts'])
         self.buildForm(name="LDOSForm", params=params)
         self.showForm(name="LDOSForm")
@@ -76,6 +81,8 @@ class LDOSPanel(Panel):
         self.expSlider = ctk.CTkSlider(self.master, orientation=ctk.HORIZONTAL, from_=0, to=15, width=420, command=self.exponential) # Slider to select which bias/sweep signal slice to look show
         self.expSlider.grid(row=12,column=self.pos,columnspan=8,rowspan=1)      # Make it take up the entire length of the panel
         self.expSlider.set(0)
+        
+        self.updateParams()
 
     def removeSpecial(self):
         self.hideForm()
@@ -92,9 +99,9 @@ class LDOSPanel(Panel):
                 self.forms[name]['labels'].append([ctk.CTkLabel(self.master, text=param),row+idr,self.pos + 2*idp])
                 self.forms[name]['entries'].append([ctk.CTkEntry(self.master),row+idr,self.pos+2*idp+1])
         
-        idr += 1
+        # idr += 1
         self.forms[name]['buttons'] = []
-        self.forms[name]['buttons'].append([ctk.CTkButton(self.master, text="RUN", command=lambda n=name: self.submitForm(n)),row+idr,self.pos])
+        self.forms[name]['buttons'].append([ctk.CTkButton(self.master, text="RUN", command=lambda n=name: self.submitForm(n)),row+idr,self.pos+2*idp+2])
         
     ###########################################################################
     # Update and Plotting
@@ -114,11 +121,15 @@ class LDOSPanel(Panel):
     
     def plotLDOS(self):
         if(not len(self.LDOS)): return
-        for LDOS in self.smoothedLDOS:
-            exponential = 0.1*np.exp(self.Ex*self.tunnellingFactor/5) - 0.1
-            self.ax.plot(self.Ex,LDOS + exponential)
+        offset = 1
+        if(len(self.x0s) == 1): offset = 0
+        exponential = 0.1*np.exp(self.Ex*self.tunnellingFactor/5) - 0.1
+        for l,LDOS in enumerate(self.smoothedLDOS):
+            for k,ldos in enumerate(LDOS):
+                c = self.mainPanel.mplibColours[k]
+                self.ax.plot(self.Ex,ldos + exponential + l*offset,c=c)
         self.ax.plot(self.Ex,exponential,linestyle = 'dashed',linewidth=1,alpha=0.5)
-        
+            
     ###########################################################################
     # Form Actions
     ###########################################################################
@@ -132,7 +143,7 @@ class LDOSPanel(Panel):
             e[0].configure(width=int(self.width/self.length),height=27)
             
             e[0].delete(0,ctk.END)
-            e[0].insert(0,[0,1,0.03,200][idx])
+            e[0].insert(0,[0,1,0.03,0,1,5,50][idx])
         
         for idx,b in enumerate(self.forms[name]['buttons']):
             b[0].grid(row=b[1],column=b[2] + 2*idx,columnspan=2)
@@ -162,23 +173,27 @@ class LDOSPanel(Panel):
                 self.updateHelpLabel("Error in form: All values must be numeric.")
                 return
                 
-        if(not (self.mainPanel.sim and self.mainPanel.sim.valid)):
-            self.updateHelpLabel("Error: simulation not valid. Need to rerun before calculting LDOS.")
-            return
+        # if(not (self.mainPanel.sim and self.mainPanel.sim.valid)):
+        #     self.updateHelpLabel("Error: simulation not valid. Need to rerun before calculting LDOS.")
+        #     return
         
         if(self.mainPanel.sim.running["main"]):
             self.updateHelpLabel("Error: Wait for the simulation to finish running.")
             return
         
-        if(self.mainPanel.sim.running["LDOS"]):
+        if(self.mainPanel.sim.running[self.name]):
             super().stop()
-            while(self.mainPanel.sim.running["LDOS"]):
+            while(self.mainPanel.sim.running[self.name]):
                 print("waiting to stop")
             self.forms["LDOSForm"]['buttons'][0][0].configure(text="RUN")
             self.updateHelpLabel("Stopped!")
             return
-            
-        emin,emax,dE,pts = params
+        
+        if(self.btn['Param'].get() == "Parameter"):
+            self.updateHelpLabel("Error: Select a paremeter to sweep first.")
+            return
+        
+        # emin,emax,dE,pmin,pmax,np,pts = params
         x0s = np.array(self.x0s)
         
         if(not len(x0s)):
@@ -188,7 +203,8 @@ class LDOSPanel(Panel):
         self.forms["LDOSForm"]['buttons'][0][0].configure(text="STOP")
         self.updateHelpLabel("Calculating LDOS...")
         
-        func = lambda : self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s,initiator=self)
+        # func = lambda : self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s,initiator=self)
+        func = lambda : self.run(params)
         super().threadTask(func)
         
     def finish(self,success,LDOS="",Ex=""):
@@ -199,7 +215,7 @@ class LDOSPanel(Panel):
         self.forms["LDOSForm"]['buttons'][0][0].configure(text="RUN")
         
         self.Ex   = Ex
-        self.LDOS = LDOS
+        self.LDOS.append(LDOS)
         self.smootheLDOS = self.smoothing(event=-1)
         
         self.update()
@@ -209,13 +225,46 @@ class LDOSPanel(Panel):
     
     def progress(self,progressStr):
         self.updateHelpLabel("Calculating LDOS... " + str(progressStr))
+        
+    def run(self,ldosParams):
+        emin,emax,dE,pmin,pmax,nP,pts = ldosParams
+        x0s = np.array(self.x0s)
+        
+        sweepName = self.btn['Param'].get()
+        sweep = np.linspace(pmin,pmax,int(nP))
+        
+        
+        func = self.mainPanel.potentialTypes[self.mainPanel.potentialType][0]
+        potentialParamNames = func()
+        sweepIndex = 0
+        for p in potentialParamNames:
+            for pp in p:
+                if(sweepName == pp): break
+                sweepIndex += 1
+            if(sweepName == pp): break
+                
+        self.LDOS = []
+        # potentialParamValues = self.mainPanel.potentialTypes[self.mainPanel.potentialType][1]
+        for p in sweep:
+            self.mainPanel.potentialTypes[self.mainPanel.potentialType][1][sweepIndex] = p
+            self.mainPanel.updatePotential()
+            self.mainPanel.submitForm(name="SimParams",skipParams=True)
+            first = True
+            while(self.mainPanel.sim.running["main"]):
+                if(first): print("waiting to stop")
+                first = False
+                time.sleep(1)
+            self.running.set()
+            time.sleep(0.1)
+            self.mainPanel.sim.getLDOS(emin,emax,dE,int(pts),x0s,initiator=self)
+        
     ###########################################################################
     # Adding x0
     ###########################################################################
     def addx0(self):
         self.updateHelpLabel("Place the LDOS marker on the potential map to the left\n"
                              + "Left click to place\nRight click to cancel")
-        self.mainPanel.addx0Bind(name = self.name)
+        self.mainPanel.addx0Bind(name=self.name)
         
     def setx0(self,x0):
         self.x0s.append(np.array(x0))
@@ -231,14 +280,42 @@ class LDOSPanel(Panel):
     def smoothing(self,event):
         if(event >=0):
             self.sg_pts = 2*int(event) + 1                                      # Change the bias on a slider event
-        self.smoothedLDOS = self.LDOS.copy()
+        self.smoothedLDOS = copy.deepcopy(self.LDOS)
         if(self.sg_pts > self.sg_poly):
             for l,LDOS in enumerate(self.LDOS):
-                self.smoothedLDOS[l] = savgol(LDOS,self.sg_pts,self.sg_poly,deriv=0)
+                for k,ldos in enumerate(LDOS):
+                    self.smoothedLDOS[l][k] = savgol(ldos,self.sg_pts,self.sg_poly,deriv=0)
         self.update()
     ###########################################################################
     # Misc
     ###########################################################################
+    def updateParams(self):
+        func = self.mainPanel.potentialTypes[self.mainPanel.potentialType][0]
+        params = func()
+        parameterValues = ["Parameter"]
+        for p in params:
+            for pp in p:
+                parameterValues.append(pp)
+        self.btn['Param'].configure(values=parameterValues,fg_color=['#3B8ED0', '#1F6AA5'])
+        self.btn['Param'].set("Parameter")
+    
+    def paramSelect(self,option):
+        pass
+    
+    def export(self,option):
+        if(option == "PNG"): super().exportPNG()
+        if(option == "Pickle"): self.exportPickle()
+        self.btn['Export'].set("Export")
+    
+    def exportPickle(self):
+        if(not len(self.LDOS)): return
+        
+        pklDict = {"smoothedLDOS": self.smoothedLDOS,
+                   "Ex": self.Ex,
+                   "tunnellingFactor": self.tunnellingFactor}
+        
+        super().exportPickle(pklDict=pklDict,initialfile="ldos_sweep")
+        
     def toggleGrid(self):
         self.gridLines = not self.gridLines
         self.update()
@@ -246,24 +323,6 @@ class LDOSPanel(Panel):
     def exponential(self,event):
         self.tunnellingFactor = event
         self.update()
-    
-    def exportldos(self):
-        if(not len(self.LDOS)): return
-        
-        default = 'ldos.pk'
-        path = filedialog.asksaveasfilename(title="Save as",initialfile=default)
-        if(not path.endswith('.pk')): path += '.pk'
-        
-        pkldict = {'Ex'         : self.Ex.copy(),
-                   'curves'     : [],
-                   'positions'  : []}
-        
-        for n,LDOS in enumerate(self.smoothedLDOS):
-            exponential = 0.1*np.exp(self.Ex*self.tunnellingFactor/5) - 0.1
-            pkldict['curves'].append(LDOS + exponential)
-            pkldict['positions'].append(self.x0s[n])
-        
-        pickle.dump(pkldict,open(path,'wb'))
         
     def load(self):
         if(len(self.mainPanel.sim.LDOS)):

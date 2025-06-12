@@ -9,6 +9,8 @@ from Panel import Panel
 import customtkinter as ctk
 import numpy as np
 import numpy.linalg as npl
+from tkinter import filedialog
+import pickle
 
 class BandStructure3D(Panel):
     numBands = 1
@@ -27,6 +29,7 @@ class BandStructure3D(Panel):
             "Add":    ctk.CTkButton(self.master, text="Add band",    command=self.addBand),
             "Remove": ctk.CTkButton(self.master, text="Remove band", command=self.removeBand),
             "PNG":    ctk.CTkButton(self.master, text="Exp PNG",     command=super().exportPNG), # Export the canvas to png
+            "Export": ctk.CTkButton(self.master, text="Exp .pk",     command=self.exportPickle),
             "Close":  ctk.CTkButton(self.master, text="Close",       command=self.destroy)
             }
         
@@ -85,3 +88,18 @@ class BandStructure3D(Panel):
             self.numBands -= 1
             self.update()
         
+    def exportPickle(self):
+        # if(not len(self.highSymLabels)): return
+        
+        default = 'BS-3D.pk'
+        path = filedialog.asksaveasfilename(title="Save as",initialfile=default)
+        if(not path.endswith('.pk')): path += '.pk'
+        
+        BS = []
+        for b in range(self.numBands):
+            Ekb = self.mainPanel.sim.Ek[b]
+            BS.append(Ekb)
+            
+        pkldict = {'BS'  : BS}
+        
+        pickle.dump(pkldict,open(path,'wb'))

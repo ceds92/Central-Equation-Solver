@@ -12,7 +12,8 @@ import numpy as np
 class MapViewerPanel(Panel):
     scaleBar = True
     plotCaption = True
-    
+    unitCell = True
+    normalise = False
     ###########################################################################
     # Constructor
     ###########################################################################
@@ -30,13 +31,14 @@ class MapViewerPanel(Panel):
         self.btn = {
             "Prev":     ctk.CTkButton(self.master, text="Prev",         command=lambda : self.cycleMap(-1)),
             "Next":     ctk.CTkButton(self.master, text="Next",         command=lambda : self.cycleMap(1)),
-            "cmap":     ctk.CTkButton(self.master, text="viridis",      command=super()._cmap), # Button to cycle through colour maps
-            "Overlay":  ctk.CTkComboBox(self.master,values=["Overlay"], command=self.overlay),  # Dropdown to change overlay display
-            "PNG":      ctk.CTkButton(self.master, text="Exp PNG",      command=super().exportPNG),   # Export the canvas to png
+            "cmap":     ctk.CTkButton(self.master, text="viridis",      command=super()._cmap),                 # Button to cycle through colour maps
+            "norm":     ctk.CTkButton(self.master, text="Normalise",    command=self.togNormalise),             # Button to toggle intensity normalisation across all maps
+            "Overlay":  ctk.CTkComboBox(self.master,values=["Overlay"], command=self.overlay),                  # Dropdown to change overlay display
+            "PNG":      ctk.CTkButton(self.master, text="Exp PNG",      command=super().exportPNG),             # Export the canvas to png
             "Close":    ctk.CTkButton(self.master, text="Close",        command=self.destroy)
             }
     
-        overlayValues = ["Overlay","Caption","Scale Bar"]
+        overlayValues = ["Overlay","Caption","Scale Bar","Unit Cell"]
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
     def buttonHelp(self):
@@ -45,6 +47,9 @@ class MapViewerPanel(Panel):
         
         helpStr = "Change the colour map"
         self.btn['cmap'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
+        
+        helpStr = "Normalise map intensity across all maps"
+        self.btn['norm'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
         
         helpStr = "Show previous map"
         self.btn['Prev'].bind('<Enter>',lambda event, s=helpStr: self.updateHelpLabel(s))
@@ -79,16 +84,24 @@ class MapViewerPanel(Panel):
             if(not self.cycleMap(0)): return
             
         cmap = self.cmaps[self.cmap][1]
-        self.ax.imshow(self.im,extent=self.extent,cmap=cmap())
+        
+        vmin = np.min(self.im)
+        vmax = np.max(self.im)
+        if(self.normalise):
+            vmin = self.vmin
+            vmax = self.vmax
+            
+        self.ax.imshow(self.im,extent=self.extent,cmap=cmap(),vmin=vmin,vmax=vmax)
         
     def updateOverlay(self):
         if(not len(self.im)): return
         left, right = self.ax.get_xlim();                                       # Remember plot extent
         bottom, top = self.ax.get_ylim();                                       # Remember plot extent
         
-        UC = self.mainPanel.getUC(self.X)
-        for line in UC:
-            self.ax.plot(line[0],line[1],c='red',linewidth=1)
+        if(self.unitCell):
+            UC = self.mainPanel.getUC(self.X)
+            for line in UC:
+                self.ax.plot(line[0],line[1],c='red',linewidth=1)
         
         if(self.scaleBar): super().addPlotScalebar()                            # Add a scale bar to the plot
         if(self.plotCaption):                                                   # Caption the image with Vbias and Iset
@@ -130,10 +143,21 @@ class MapViewerPanel(Panel):
         self.X  = self.mainPanel.sim.psi[energies[self.map]]['X']
         self.extent = self.mainPanel.sim.psi[energies[self.map]]['extent']
         
+        self.vmin =  np.inf
+        self.vmax = -np.inf
+        for key,value in self.mainPanel.sim.psi.items():
+            vmax = np.max(value['psi'])
+            vmin = np.min(value['psi'])
+            if(vmax > self.vmax): self.vmax = vmax
+            if(vmin < self.vmin): self.vmin = vmin
+        
         if(m == 0): return True
         
         self.update()
-        
+    
+    def togNormalise(self):
+        self.normalise = not self.normalise
+        self.update()
     ###########################################################################
     # Misc
     ###########################################################################
@@ -146,6 +170,8 @@ class MapViewerPanel(Panel):
             return
         if(option == "Caption"):    self.toggleCaption()
         if(option == "Scale Bar"):  self.toggleScaleBar()
+        if(option == "Unit Cell"):  self.toggleUnitCell()
+        
         self.btn['Overlay'].set("Overlay")
         
     def toggleCaption(self):
@@ -154,4 +180,8 @@ class MapViewerPanel(Panel):
     
     def toggleScaleBar(self):
         self.scaleBar = not self.scaleBar
+        self.update()
+    
+    def toggleUnitCell(self):
+        self.unitCell = not self.unitCell
         self.update()

@@ -1,3 +1,4 @@
+# %%
 # -*- coding: utf-8 -*-
 """
 Created on Wed Nov 23 17:33:43 2022
@@ -31,11 +32,12 @@ class EPWE():
         self.valid = False
         self.running = {"main":False,
                         "LDOS":False,
+                        "Sweep":False,
                         "map": False,
                         "potential": False}
     
-    def stop(self,name):
-        exec("global_." + name + "_running.clear()")
+    def stop(self,name,initiator=None):
+        if(initiator): exec("global_." + name + "_running.clear()")
         self.running[name] = False
         
     def run(self,a,X,V,initiator=None):
@@ -55,16 +57,16 @@ class EPWE():
         self.valid = False
         
         G,K,bz   = self.brillouinZone(a,initiator)                              # Determine the first Brillouin zne
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         Gnm,vg   = self.fourierCoefs(a,X,V,G,initiator)                         # Determine the Fourier coefficients of the potential
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         U        = self.constructPotentialMatrix(vg,initiator)                  # Construct the potential matrix used to solve the TISE for a periodic potential
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         Ek,Coeff = self.solveTISE(Gnm,K,U,bz,initiator)                         # Solve the TISE
-        if(self.checkEventFlags(name)): self.stop(name); return                 # Sim has been stopped. Clear the running flag and return
+        if(initiator and self.checkEventFlags(name)): self.stop(name,initiator); return # Sim has been stopped. Clear the running flag and return
         
         self.a = a                                                              # Primitive lattice vectors
         self.X = X                                                              # Real space [x1,x2]
@@ -83,7 +85,7 @@ class EPWE():
         
         if(initiator): initiator.simFinished(True)
         
-        self.stop("main"); return                                               # Sim has finished. Clear the running flag and return
+        self.stop("main",initiator)                                             # Sim has finished. Clear the running flag and return
         
     def save(self,name="EPWESIM"):
         """
@@ -192,28 +194,17 @@ class EPWE():
         K1,K2 = np.meshgrid(k1,k2)
         gamma = int(ks/2)
         
-        bz = np.zeros_like(K1)
-        for q in [-1,0,1]:
-            for w in [-1,0,1]:
-                if(q==0 and w==0): continue
-                G = q*b1 + w*b2                                                 # Reciprocal lattice vector
-                p = G/2
-                if(G[1] == 0):
-                    if(p[0] < 0):
-                        bz += K1 > p[0]
-                    if(p[0] > 0):
-                        bz += K1 < p[0]
-                else:
-                    m = -G[0]/G[1]
-                    c = p[1] - m*p[0]
-                    bz += K2 > (m*K1 + c)
-                keepValue = bz[gamma,gamma]
-                mask = bz == keepValue
-                bz[~mask] = -1
-                
+        bz = np.ones_like(K1, dtype=bool)
+        for q in [-1, 0, 1]:
+            for w in [-1, 0, 1]:
+                if (q == 0 and w == 0): continue
+                G = q * b1 + w * b2
+                condition = (K1 * G[0] + K2 * G[1]) < (G[0]**2 + G[1]**2) / 2
+                bz &= condition
+
         bz = np.array(bz > 0)
         
-        print("Done")
+        print("Done2")
         return np.array([Gn,Gm]), np.array([k1,k2]), bz
     
     def fourierCoefs(self,a,X,V,G,initiator=None):
@@ -264,107 +255,117 @@ class EPWE():
                             progress = "Calculating Fourier terms..." + str(progress) + '%'
                             initiator.progress(progress)
             
-                if(self.checkEventFlags("main")): return 0,0                    # Sim has been stopped. Clear the running flag and return
+                if(initiator and self.checkEventFlags("main")): return 0,0      # Sim has been stopped. Clear the running flag and return
         
         print("Done")
         return np.array(Gnm),vg
         
-    def constructPotentialMatrix(self,vg,initiator=None):
+    def constructPotentialMatrix(self, vg, initiator=False):
         """
-        This function constructs the potential matrix used in solving the TISE
+        Constructs the potential matrix for solving the TISE using plane wave expansion in 2D.
 
         Parameters
         ----------
-        vg : Fourier coefficients of the periodic potential
+        vg : ndarray
+            Fourier coefficients of the periodic potential, shape (2*N + 1, 2*N + 1).
+            vg[n, m] corresponds to G = (n - N)*b1 + (m - N)*b2, where n, m = 0 to 2*N.
 
         Returns
         -------
-        U : The potential matrix used in solving the TISE
-
+        U : ndarray
+            Potential matrix, shape (num_G, num_G), where num_G = (2*N + 1)^2.
+            U[i,j] = V_{G_i - G_j}.
         """
-        if(initiator and not self.checkEventFlags("main")):
-            initiator.progress("Constructing potential matrix...0 %")
         print("Constructing Potential Matrix")
-        N = self.N
-        
-        n = int((1+(2*N+1)**2)/2)                                               # The dimension of the potential matrix is
-        U = np.zeros((n,n),dtype='complex_')
-        vv = vg.reshape((len(vg)*len(vg[0])))
-        for nv, v in enumerate(vv):
-            if(nv < n):
-                diag = np.diag([v]*(nv+1),n-1-nv)
-            else:
-                diag = np.diag([v]*((2*N+1)*(2*N+1) - nv),n-1-nv)
-            U += diag
-            
-            if((nv%int(0.1*len(vv))) == 0):
-                progress = int(100*nv/len(vv))+1
-                print(progress,'%')
-                if(initiator and not self.checkEventFlags("main")):
-                    progress = "Constructing potential Matrix..." + str(progress) + '%'
-                    initiator.progress(progress)
+        N = self.N  # Assuming N is an attribute of the class
+        num_G = (2*N + 1)**2  # Total number of reciprocal lattice vectors
+        U = np.zeros((num_G, num_G), dtype=complex)  # Initialize U with complex type
 
-            if(self.checkEventFlags("main")): return 0                          # Sim has been stopped. Clear the running flag and return
-        
+        # Loop over all possible reciprocal lattice vector pairs
+        for n_i in range(-N, N + 1):
+            for m_i in range(-N, N + 1):
+                # Map (n_i, m_i) to a single index i
+                i = (n_i + N) * (2*N + 1) + (m_i + N)
+                for n_j in range(-N, N + 1):
+                    for m_j in range(-N, N + 1):
+                        # Map (n_j, m_j) to a single index j
+                        j = (n_j + N) * (2*N + 1) + (m_j + N)
+                        # Compute G_diff components
+                        k = n_i - n_j  # Difference in b1 direction
+                        l = m_i - m_j  # Difference in b2 direction
+                        # Check if G_diff is within the computed vg range
+                        if -N <= k <= N and -N <= l <= N:
+                            # Map k, l to vg indices: (n - N) = k => n = k + N
+                            U[i, j] = vg[k + N, l + N]
+                        else:
+                            # Set to 0 for differences outside vg's range
+                            U[i, j] = 0
+
         print("Done")
         return U
-    
-    def solveTISE(self,Gnm,K,U,bz,initiator):
+
+    def solveTISE(self, Gnm, K, U, bz, initiator=False):
         """
-        This function solves the TISE for the system with periodic potential, V
+        Solves the TISE for a periodic potential in 2D using the plane wave expansion method.
 
         Parameters
         ----------
-        Gnm : Combinations of the reciprocal lattice vectors
-        K   : k space, defined as [k1,k2]
-        U   : Potential matrix
-        bz  : Map of the first Brillouin zone
+        Gnm : ndarray, shape ((2N+1)^2, 2)
+            Combinations of reciprocal lattice vectors.
+        K : list of ndarray
+            k-space points [k1, k2], each of length ks.
+        U : ndarray, shape ((2N+1)^2, (2N+1)^2)
+            Potential matrix in the plane wave basis.
+        bz : ndarray, shape (ks, ks)
+            Boolean map of the first Brillouin zone (1 = inside, 0 = outside).
 
         Returns
         -------
-        Ek    : Kinetic matrix containing eigen values/energies
-        Coeff : Fourier coefficients of the eigenstates/wavefunctions
-
+        Ek : ndarray, shape ((2N+1)^2, ks, ks)
+            Band energies (eigenvalues) for each k-point.
+        Coeff : ndarray, shape ((2N+1)^2, (2N+1)^2, ks, ks)
+            Wavefunction coefficients (eigenvectors).
         """
         if(initiator and not self.checkEventFlags("main")):
             initiator.progress("Solving TISE...0 %")
         print("Calculating Kinetic Terms and Eigen Values...")
-        N     = self.N
-        ks    = self.ks
+        N = self.N
+        ks = self.ks
         m_eff = self.m_eff
-        n     = int((1+(2*N+1)**2)/2)                                           # The dimension of the hamiltonian
-        
-        k1,k2 = K
-        
-        Ek = np.zeros((n,ks,ks))*np.nan
-        Coeff = np.array(np.zeros(n**2*len(k1)**2),dtype = 'complex_')          # Fourier coefficients of our wavefn will be stored here
-        Coeff = Coeff.reshape((n,n,len(k1),len(k2)))                            # Can't make an np.array this shape unless we do it like this for some reason
-        for kn,kx in enumerate(k1):
-            for km,ky in enumerate(k2):
-                if(bz[kn,km] == 0): continue
-                kg = np.array([kx,ky]) - Gnm[n-int(n/2):n+int(n/2)+1]
-                diag = ((h_bar**2)/(2*m_e*m_eff))*(npl.norm(kg,axis=1)**2)
+        num_G = (2 * N + 1) ** 2  # Correct basis size
 
-                H0 = np.diag(diag,0)
-                H  = H0 + U
+        k1, k2 = K
+        Ek = np.full((num_G, ks, ks), np.nan)  # Energies, NaN outside BZ
+        Coeff = np.zeros((num_G, num_G, ks, ks), dtype=complex)  # Coefficients
+
+        cnt = 0
+        total = len(k1) * len(k2)
+        for kn, kx in enumerate(k1):
+            for km, ky in enumerate(k2):
+                cnt += 1
+                if((cnt%int(0.1*total)) == 0):
+                    progress = int(100*cnt/total)
+                    print(progress,'%')
+                    if(initiator and not self.checkEventFlags("main")):
+                        progress = "Solving TISE..." + str(progress) + '%'
+                        initiator.progress(progress)
+
+                if not bz[km, kn]:
+                    continue  # Skip points outside BZ
+
+                k = np.array([kx, ky])
+                kg = k + Gnm  # Shape: (num_G, 2), all basis vectors
+                diag = (h_bar**2 / (2 * m_e * m_eff)) * np.sum(kg**2, axis=1)
+                H0 = np.diag(diag)
+                H = H0 + U  # U must be (num_G, num_G)
+                vals, vecs = np.linalg.eigh(H)
+                Ek[:, kn, km] = vals
+                Coeff[:, :, kn, km] = vecs
                 
-                vals,vecs        = npl.eigh(H)
-                Ek[:,kn,km]      = vals
-                Coeff[:,:,kn,km] = vecs
-                
-                k = kn*ks+km
-                if(k > 10):
-                    if((k%int(0.1*ks**2)) == 0):
-                        progress = int(100*k/ks**2)+1
-                        print(progress,'%')
-                        if(initiator and not self.checkEventFlags("main")):
-                            progress = "Solving TISE..." + str(progress) + '%'
-                            initiator.progress(progress)
-            
-            if(self.checkEventFlags("main")): return 0,0                        # Sim has been stopped. Clear the running flag and return
-                
+            if(initiator and self.checkEventFlags("main")): return 0,0          # Sim has been stopped. Clear the running flag and return
+
         print("Done")
-        return Ek,Coeff
+        return Ek, Coeff
     
     def rebuildPotential(self,scale,initiator=None):
         """
@@ -407,7 +408,7 @@ class EPWE():
                             initiator.progress(progress)
             
                 if(initiator and self.checkEventFlags("potential")):
-                    self.stop("potential")
+                    self.stop("potential",initiator)
                     return                                                      # Sim has been stopped. Clear the running flag and return
         
         print("Done")
@@ -422,182 +423,169 @@ class EPWE():
         if(initiator):
             initiator.finish(True,C,extent,np.array([x1,x2]))
         
-        self.stop("potential")
+        self.stop("potential",initiator)
         return C,extent,np.array([x1,x2])
-    
-    def getWavefunction(self,E,scale=1,initiator=None):
+    def getWavefunction(self, E, scale=1, initiator=None):
         """
-        This function computes the real-space density distribution within a
-        given energy range, E.
+        Computes the spatial distribution of electron density integrated over an energy window.
 
         Parameters
         ----------
-        E       : Can be either a single valued energy (float32) or two-valued
-                  np.array([emin,emax])
-        scale   : Factor to plot the distribution over an extended real space.
-                  (i.e. number of unit cells)
+        E : np.ndarray
+            Energy window [Emin, Emax] in eV, where Emin and Emax define the range to integrate over.
 
         Returns
         -------
-        psi    : Electron density distribution
-        extent : Extent used for plotting (e.g. imshow)
-        X      : Scaled real space
-
+        rho : np.ndarray
+            2D array of electron density (shape: (len(x1), len(x2))) in arbitrary units.
+        X : np.ndarray
+            Real-space grid coordinates [x1, x2] for plotting.
         """
         self.running["map"] = True
-        
         print("Calculating Wavefunction...")
-        N     = self.N
-        bz    = self.bz
-        k1,k2 = self.K
-        Ek    = self.Ek
-        Gnm   = self.Gnm
-        Coeff = self.Coeff
-        
-        n     = int((1+(2*N+1)**2)/2)                                           # The dimension of the hamiltonian
-        bound = int(n/2)
-        
-        #B = Ek == E
-        energy = E
-        if(np.array(E).shape):
-            emin = E[0]; emax = E[1]
-            B = ((Ek >= emin) & (Ek <= emax))
-            energy = int(1000*np.sum(E)/2)/1000
-        
-        B = B*bz
-        
-        x1,x2 = self.X*scale                                                    # Extract the real-space axis
-        X1,X2 = np.meshgrid(x1,x2)                                              # The mesh
-        
-        count = 0
-        psi   = np.zeros_like(X1)                                               # Sum of the states within the energy window emin to emax wil go here
-        for row in range(n):
-            for kn,kx in enumerate(k1):
-                for km,ky in enumerate(k2):
-                    if(not B[row,kn,km]): continue
-                    k  = np.array([kx,ky])
-                    kg = k + Gnm[n-bound:n+bound+1]
-                    kg1 = kg[:,0].reshape((n,1))
-                    kg2 = kg[:,1].reshape((n,1))
+
+        i = 1j  # Imaginary unit
+
+        # Extract simulation data
+        N = self.N
+        X = self.X
+        bz = self.bz
+        k1, k2 = self.K
+        Ek = self.Ek  # Shape: (num_bands, len(k1), len(k2))
+        Gnm = self.Gnm  # Shape: ((2*N + 1)**2, 2)
+        Coeff = self.Coeff  # Shape: ((2*N + 1)**2, (2*N + 1)**2, len(k1), len(k2))
+
+        n = (2 * N + 1) ** 2  # Number of plane waves (bands)
+        Emin, Emax = E  # Unpack energy window
+        energy = (Emax - Emin)/2
+
+        # Real-space grid
+        x1, x2 = X*scale
+        X1, X2 = np.meshgrid(x1, x2)  # Shape: (len(x2), len(x1))
+        rho = np.zeros(X1.shape, dtype=float)  # Electron density map
+
+        print(f"Calculating wavefunction density for E = [{Emin}, {Emax}] eV")
+
+        # Mask for states within energy window and BZ
+        B = ((Ek >= Emin) & (Ek <= Emax)) & bz[np.newaxis, :, :]  # Shape: (n, len(k1), len(k2))
+
+        # Loop over k-points and bands
+        for kn, kx in enumerate(k1):
+            for km, ky in enumerate(k2):
+                if not np.any(B[:, kn, km]):  # Skip if no states in window at this k
+                    continue
+                k = np.array([kx, ky])
+                kg = k + Gnm  # Shape: (n, 2)
+                # Compute phase factor for all positions at once
+                phase = np.exp(i * (kg[:, 0, None, None] * X1 + kg[:, 1, None, None] * X2))  # Shape: (n, len(x2), len(x1))
+                for row in range(n):
+                    if not B[row, kn, km]:
+                        continue
+                    # Wavefunction: psi = sum_G c_G * exp(i (k+G) · r)
+                    psi = np.sum(Coeff[:, row, kn, km, None, None] * phase, axis=0)  # Shape: (len(x2), len(x1))
+                    rho += np.abs(psi) ** 2  # Add density contribution
                     
-                    exp = np.exp(i*(kg1[...,None]*X1 + kg2[...,None]*X2))
-                    psi_k = np.sum(exp*Coeff[:,row,kn,km][...,None,None],0)
-                    psi  += abs(psi_k)**2
-                    
-                    count += 1
-                    if(np.sum(B) > 10):
-                        if((count%int(0.1*np.sum(B))) == 0):
-                            progress = int(100*count/np.sum(B))+1
-                            print(progress,'%')
-                            if(initiator and not self.checkEventFlags("map")):
-                                initiator.progress(progress)
-        
                     if(initiator and self.checkEventFlags("map")):
-                        self.stop("map")
+                        self.stop("map",initiator)
                         return                                                  # Sim has been stopped. Clear the running flag and return
-                
+                    
         extent = np.array([min(x1),max(x1),min(x2),max(x2)])
-        
         self.psi[energy] = {"E"      : E,
                             "X"      : np.array([x1,x2]),
                             "scale"  : scale,
                             "extent" : extent,
-                            "psi"    : psi}
+                            "psi"    : rho}
         
         print("Done")
         
         if(initiator):
-            initiator.finish(True,psi.copy(),extent.copy(),np.array([x1,x2]).copy())
+            initiator.finish(True,rho.copy(),extent.copy(),np.array([x1,x2]).copy())
         
-        self.stop("map")
-        return psi.copy(),extent.copy(),np.array([x1,x2]).copy()
+        self.stop("map",initiator)
+        
+        return rho.copy(),extent.copy(),np.array([x1,x2]).copy()
     
-    def getLDOS(self,Exmin,Exmax,dE,pts,x0s,initiator=""):
+    def getLDOS(self, Exmin, Exmax, dE, pts, x0s, initiator=False):
         """
-        This function computes the local density of states at given x0 values
+        Computes the local density of states at given x0 values.
 
         Parameters
         ----------
-        Exmin : Lower bound of the energy range (eV)
-        Exmax : Upper bound of the energy range (eV)
-        dE    : Energy broadening term
-        pts   : Number of points within the energy range
-        x0s   : List of locations [np.array([x1,x2],np.array([x1n,x2n]),...] to 
-                generate LDOS
+        Exmin : float
+            Lower bound of the energy range (eV)
+        Exmax : float
+            Upper bound of the energy range (eV)
+        dE    : float
+            Energy broadening term
+        pts   : int
+            Number of points within the energy range
+        x0s   : list of np.ndarray
+            List of positions [np.array([x1,x2]), ...] to generate LDOS
 
         Returns
         -------
-        LDOSs : Array of LDOS curves where each element is a curve
-                corresponding to an x0
-        Ex    : Energy axis to plot LDOS
-
+        LDOSs : np.ndarray
+            Array of LDOS curves corresponding to each x0
+        Ex    : np.ndarray
+            Energy axis for plotting LDOS
         """
-        self.running["LDOS"] = True
+        if(not initiator): self.running["LDOS"] = True
+        else: self.running[initiator.name] = True
+
+        i = 1j  # Define imaginary unit
+
+        N = self.N
+        X = self.X
+        bz = self.bz
+        k1, k2 = self.K
+        Ek = self.Ek
+        Gnm = self.Gnm  # Shape: ((2*N + 1)**2, 2)
+        Coeff = self.Coeff  # Shape: ((2*N + 1)**2, (2*N + 1)**2, len(k1), len(k2))
+
+        n = (2*N + 1)**2  # Correct number of plane waves
+
+        # Real-space coordinates
+        x1, x2 = X
+        X1, X2 = np.meshgrid(x1, x2)
         
-        N     = self.N
-        X     = self.X
-        bz    = self.bz
-        k1,k2 = self.K
-        Ek    = self.Ek
-        Gnm   = self.Gnm
-        Coeff = self.Coeff
+        ovrfl = 0.03 * (Exmax - Exmin)
+        Ex = np.linspace(Exmin - ovrfl, Exmax + ovrfl, pts)
+        LDOSs = np.zeros((len(x0s), len(Ex)))
         
-        n     = int((1+(2*N+1)**2)/2)                                           # The dimension of the hamiltonian
-        bound = int(n/2)
-        
-        x1,x2 = X
-        X1,X2 = np.meshgrid(x1,x2)
-        
-        ovrfl = 0.03*(Exmax-Exmin)
-        Ex = np.linspace(Exmin-ovrfl,Exmax+ovrfl,pts)
-        LDOSs = np.zeros((len(x0s),len(Ex)))
-        for nx0,x0 in enumerate(x0s):
-            x0idx = np.argmin(abs(X - x0[...,None]),axis=1)
-            print("Calculating LDOS at position",x1[x0idx[0]],',',x2[x0idx[1]])
-        
-            for ne,e in enumerate(Ex):
-                emin = e - dE/2
-                emax = e + dE/2
-                B = ((Ek >= emin) & (Ek <= emax)) * bz
+        for nx0, x0 in enumerate(x0s):
+            x0idx = np.argmin(np.abs(X - x0[..., None]), axis=1)
+            print("Calculating LDOS at position", x1[x0idx[0]], ',', x2[x0idx[1]])
+            
+            for ne, e in enumerate(Ex):
+                emin = e - dE / 2
+                emax = e + dE / 2
+                B = ((Ek >= emin) & (Ek <= emax)) & bz[np.newaxis, :, :]
                 ldos = 0
                 for row in range(n):
-                    for kn,kx in enumerate(k1):
-                        for km,ky in enumerate(k2):
-                            if(not B[row,kn,km]): continue
-                            k  = np.array([kx,ky])
-                            kg = k + Gnm[n-bound:n+bound+1]
-                            kg1 = kg[:,0].reshape((n,1))
-                            kg2 = kg[:,1].reshape((n,1))
-                            
-                            exp = np.exp(i*(kg1[...,None]*x1[x0idx[0]] + -kg2[...,None]*x2[x0idx[1]]))
-                            psi_k = np.sum(exp*Coeff[:,row,kn,km][...,None,None],0)
-                            
-                            ldos += abs(psi_k)**2
-                            
-                        if(initiator and self.checkEventFlags("LDOS")):
-                            self.stop("LDOS")
-                            return                                              # Sim has been stopped. Clear the running flag and return
-                    
-                LDOSs[nx0,ne] = ldos
-                if(ne%int(0.1*len(Ex)) == 0):
-                    progress = int(100*ne/len(Ex))
-                    print(progress,'%')
-                    progressStr = "Point "+str(nx0+1)+'/'+str(len(x0s))+': '+str(progress)+' %'
-                    if(initiator and not self.checkEventFlags("LDOS")):
-                        initiator.progress(progressStr)
+                    for kn, kx in enumerate(k1):
+                        for km, ky in enumerate(k2):
+                            if not B[row, kn, km]:
+                                continue
+                            k = np.array([kx, ky])
+                            kg = k + Gnm  # Shape: (n, 2)
+                            exp = np.exp(i * (kg[:, 0] * x1[x0idx[0]] + kg[:, 1] * x2[x0idx[1]]))
+                            psi_k = np.sum(Coeff[:, row, kn, km] * exp)
+                            ldos += np.abs(psi_k)**2
+                LDOSs[nx0, ne] = ldos
         
         LDOSs /= np.max(LDOSs)
-        self.LDOS    = LDOSs
-        self.LDOSEx  = Ex
+        self.LDOS = LDOSs
+        self.LDOSEx = Ex
         self.LDOSx0s = x0s
         
         print("Done")
         if(initiator):
             initiator.finish(True,LDOSs,Ex)
-        
-        self.stop("LDOS")
-        return LDOSs,Ex
-        
+            self.stop(initiator.name,initiator)
+        else:
+            self.stop("LDOS",initiator)
+        return LDOSs, Ex
+
     def checkEventFlags(self,name):
         ldict = {}
         exec("running_" + name + " = global_." + name + "_running.is_set()",globals(),ldict)

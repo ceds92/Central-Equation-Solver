@@ -13,6 +13,7 @@ class MapsPanel(Panel):
     scaleBar = True
     plotCaption = True
     band = 0
+    init = False
     ###########################################################################
     # Constructor
     ###########################################################################
@@ -22,6 +23,7 @@ class MapsPanel(Panel):
         self.buttons()
         self.forms = {}
         self.psi = []
+        self.init = True
         
     ###########################################################################
     # Panel
