@@ -55,12 +55,6 @@ class MainPanel(Panel):
         self.potentialTypes = {"Hexagonal" : [pot.hexagonal_primitive,  [1,0.3,101,-2]],
                                "Kagome"    : [pot.kagome_primitive,     [1,0.4,101,-2]],
                                "Muffin Tin": [pot.muffin_primitive,     [1,0.25,101,-2.5]],
-                               "Big Star"  : [pot.HATCu_bigstar,        [0.81,0.9,201,1,0.40,0.15,0.80,0.00,0.40]],
-                               "Big Star2" : [pot.HATCu_bigstar2,       [0.83,0.9,201,1,0.70,0.2,0.8,0.00,0.70]],
-                               "Herringbone":[pot.HATCu_herringbone,    [0.83,0.9,201,1,0.55,0.2,0.4,-0.07,0.55]],
-                               "Small Star": [pot.HATCu_smallstar,      [0.70,0.9,201,1,0.40,0.15,0.8,0.00]],
-                               "HAT2Cu3"   : [pot.HAT2Cu3,              [0.81,0.9,201,1,0.40,0.15]],
-                               "g80"       : [pot.g80,                  [2.40,0.9,201,1,0.55,0.2,0.4,-0.07]],
                                "SimParams" : [self.run,                 [31,5,0.43]]}
         self.init = True
         
