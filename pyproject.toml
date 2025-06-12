@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Central-Equation-Solver"
+version = "1.0.0"
+description = "Solves the TISE for an electron in a 2D potential"
+authors = [{name="Julian Ceddia", email="jdceddia@gmail.com"}]
+requires-python = ">=3.9"
+license = {text = "MIT"}
+keywords = ["TISE","Central-Equation-Solver","EPWE","Python","Physics"]
+dependencies = [
+    'numpy',
+    'matplotlib',
+    'customtkinter',
+    'matplotlib_scalebar',
+    'scipy',
+    'nanonispy',
+    'lmfit'
+]
+
+[tool.setuptools]
+packages = { find = { where = ["Central-Equation-Solver"] } }

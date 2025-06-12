@@ -113,8 +113,8 @@ class SweepPanel(Panel):
         self.ax.set_position([0.09, 0.07, 0.87, 0.9])                           # Make it take up the whole canvas
         self.plotLDOS()
         if(self.gridLines):
-            self.ax.grid(b=True, which='major', linestyle='-')
-            self.ax.grid(b=True, which='minor', linestyle='--')
+            self.ax.grid(True, which='major', linestyle='-')
+            self.ax.grid(True, which='minor', linestyle='--')
             self.ax.minorticks_on()
         self.canvas.figure = self.fig                                           # Assign the figure to the canvas
         self.canvas.draw()    

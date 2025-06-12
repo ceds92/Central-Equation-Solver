@@ -12,6 +12,7 @@ import numpy as np
 class MapViewerPanel(Panel):
     scaleBar = True
     plotCaption = True
+    unitCell = True
     normalise = False
     ###########################################################################
     # Constructor
@@ -37,7 +38,7 @@ class MapViewerPanel(Panel):
             "Close":    ctk.CTkButton(self.master, text="Close",        command=self.destroy)
             }
     
-        overlayValues = ["Overlay","Caption","Scale Bar"]
+        overlayValues = ["Overlay","Caption","Scale Bar","Unit Cell"]
         self.btn['Overlay'].configure(values=overlayValues,fg_color=['#3B8ED0', '#1F6AA5'])
         
     def buttonHelp(self):
@@ -97,9 +98,10 @@ class MapViewerPanel(Panel):
         left, right = self.ax.get_xlim();                                       # Remember plot extent
         bottom, top = self.ax.get_ylim();                                       # Remember plot extent
         
-        UC = self.mainPanel.getUC(self.X)
-        for line in UC:
-            self.ax.plot(line[0],line[1],c='red',linewidth=1)
+        if(self.unitCell):
+            UC = self.mainPanel.getUC(self.X)
+            for line in UC:
+                self.ax.plot(line[0],line[1],c='red',linewidth=1)
         
         if(self.scaleBar): super().addPlotScalebar()                            # Add a scale bar to the plot
         if(self.plotCaption):                                                   # Caption the image with Vbias and Iset
@@ -168,6 +170,8 @@ class MapViewerPanel(Panel):
             return
         if(option == "Caption"):    self.toggleCaption()
         if(option == "Scale Bar"):  self.toggleScaleBar()
+        if(option == "Unit Cell"):  self.toggleUnitCell()
+        
         self.btn['Overlay'].set("Overlay")
         
     def toggleCaption(self):
@@ -176,4 +180,8 @@ class MapViewerPanel(Panel):
     
     def toggleScaleBar(self):
         self.scaleBar = not self.scaleBar
+        self.update()
+    
+    def toggleUnitCell(self):
+        self.unitCell = not self.unitCell
         self.update()

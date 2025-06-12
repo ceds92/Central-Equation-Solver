@@ -224,8 +224,9 @@ class Panel():
         path = filedialog.asksaveasfilename(title="Save as",initialfile=initialfile + '.png')
         if path == "":
             return None
-        if(not path.endswith('.png')): path += '.png'
-        self.fig.savefig(path,format='png',dpi=dpi)
+        if(not path.endswith('.png') and not path.endswith('.svg')):
+            path += '.png'
+        self.fig.savefig(path,dpi=dpi,bbox_inches='tight',pad_inches=0)
     
     def exportPickle(self,pklDict,initialfile="pickle"):
         if(not initialfile.endswith('.pk')): initialfile += '.pk'

@@ -36,7 +36,7 @@ class MainPanel(Panel):
     # Constructor
     ###########################################################################
     def __init__(self, master, width=512, height=512, dpi=96, scaleFactor=1):
-        self.init()
+        self.initialise()
         super().__init__(master, width=width, height=height, dpi=dpi, length=8, btnSize=2, scaleFactor=scaleFactor)
         super().initGlobs(name="main")
         self.buildSubPanels()
@@ -45,8 +45,7 @@ class MainPanel(Panel):
         self.canvas.figure = self.fig
         self.canvas.draw()
         
-    def init(self):
-        self.init = True
+    def initialise(self):
         self.scaleBar = True
         self.plotCaption = True
         self.sim = EPWE()
@@ -56,9 +55,14 @@ class MainPanel(Panel):
         self.potentialTypes = {"Hexagonal" : [pot.hexagonal_primitive,  [1,0.3,101,-2]],
                                "Kagome"    : [pot.kagome_primitive,     [1,0.4,101,-2]],
                                "Muffin Tin": [pot.muffin_primitive,     [1,0.25,101,-2.5]],
-                               "Big Star"  : [pot.HATCu_bigstar,        [0.93,0.9,201,1,0.55,0.2,0.4,-0.07]],
-                               "Small Star": [pot.HATCu_smallstar,      [0.68,0.9,201,1,0.55,0.2,0.4,-0.07]],
-                               "SimParams" : [self.run,                 [31,5,0.4]]}
+                               "Big Star"  : [pot.HATCu_bigstar,        [0.81,0.9,201,1,0.40,0.15,0.80,0.00,0.40]],
+                               "Big Star2" : [pot.HATCu_bigstar2,       [0.83,0.9,201,1,0.70,0.2,0.8,0.00,0.70]],
+                               "Herringbone":[pot.HATCu_herringbone,    [0.83,0.9,201,1,0.55,0.2,0.4,-0.07,0.55]],
+                               "Small Star": [pot.HATCu_smallstar,      [0.70,0.9,201,1,0.40,0.15,0.8,0.00]],
+                               "HAT2Cu3"   : [pot.HAT2Cu3,              [0.81,0.9,201,1,0.40,0.15]],
+                               "g80"       : [pot.g80,                  [2.40,0.9,201,1,0.55,0.2,0.4,-0.07]],
+                               "SimParams" : [self.run,                 [31,5,0.43]]}
+        self.init = True
         
     ###########################################################################
     # Panel
@@ -184,7 +188,7 @@ class MainPanel(Panel):
     ###########################################################################
     # Main Panel Updates
     ###########################################################################
-    def update(self,upd=[-1]):
+    def update(self,upd=[-1],fromThread=False):
         if(-1 in upd or 0 in upd):                                              # upd=0 selects mainPanel
             self.ax.cla()                                                       # Clear the axis
             self.updatePotential()                                              # Show the processed (tilt-corrected, filtered, etc.) sxm image
@@ -192,7 +196,7 @@ class MainPanel(Panel):
             self.ax.axis('off')                                                 # Hide the axis
             
         if((-1 in upd or 1 in upd) and self.bs2DPanel.active):                  # upd=1 selects lineProfile panel
-            self.bs2DPanel.update()
+            self.bs2DPanel.update(fromThread)
             
         if((-1 in upd or 2 in upd) and self.bs3DPanel.active):                  # upd=1 selects lineProfile panel
             self.bs3DPanel.update()
@@ -347,7 +351,7 @@ class MainPanel(Panel):
         
         self.updateHelpLabel("Finished Running!")
         if(self.sim.valid):
-            self.update()
+            self.update(fromThread=True)                                        # Flag to let everyone know that this update is not being called from the main thread. Was causing issues with inset figs being touched outside of main thread
         
     def progress(self,progressStr):
         self.updateHelpLabel(progressStr)
